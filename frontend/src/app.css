@@ -1,0 +1,123 @@
+/* Route-level helpers */
+#root {
+  min-height: 100%;
+}
+
+/* ─── Shared button used by auth pages ─── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 20px;
+  height: 44px;
+  border: none;
+  border-radius: 10px;
+  font: 500 15px/1 var(--font-sans, "DM Sans", system-ui, sans-serif);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn--primary {
+  background: var(--color-primary, #2d2a26);
+  color: var(--color-primary-foreground, #faf9f6);
+}
+
+.btn--primary:hover {
+  opacity: 0.9;
+}
+
+.btn--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Auth pages ─── */
+.ss-auth {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--color-background, #faf9f6);
+}
+
+.ss-auth__card {
+  width: min(420px, 100%);
+  background: var(--color-secondary, #f2f0ec);
+  border-radius: 14px;
+  padding: 32px;
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--color-border, #e5e2dc);
+}
+
+.ss-auth__card h1 {
+  font: 600 32px/1.1 var(--font-display, "Space Grotesk", system-ui, sans-serif);
+  letter-spacing: -0.035em;
+  margin: 0;
+  color: var(--color-primary, #2d2a26);
+}
+
+.ss-auth__card p {
+  margin: 0;
+  color: var(--color-muted-foreground, #6b6963);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ss-auth__card a {
+  color: var(--color-primary, #2d2a26);
+  font-weight: 500;
+}
+
+.ss-field {
+  display: grid;
+  gap: 6px;
+}
+
+.ss-field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-primary, #2d2a26);
+}
+
+.ss-field input {
+  height: 44px;
+  border: 1px solid var(--color-border, #e5e2dc);
+  border-radius: 8px;
+  padding: 0 12px;
+  font: 400 15px/1 var(--font-sans, "DM Sans", system-ui, sans-serif);
+  background: var(--color-background, #faf9f6);
+  color: var(--color-primary, #2d2a26);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.ss-field input:focus {
+  outline: 2px solid var(--color-primary, #2d2a26);
+  outline-offset: 1px;
+}
+
+.ss-error {
+  color: #8b1e1e;
+  font-size: 13px;
+  margin: 0;
+}
+
+.ss-demo-btn {
+  background: transparent;
+  border: 1px dashed var(--color-border, #e5e2dc);
+  color: var(--color-primary, #2d2a26);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.ss-demo-btn:hover {
+  background: var(--color-secondary, #f2f0ec);
+}

@@ -1,0 +1,217 @@
+/* ==========================================================================
+   Voice desk / conversation page.
+   Ported from sarkari-saathi-conversation.html and scoped under .desk-root so
+   the generic class names (.status, .bubble, .stage …) never leak elsewhere.
+   ========================================================================== */
+.desk-root {
+      --plum: #462d43;
+      --plum-soft: #80506a;
+      --lime: #c8e56a;
+      --paper: #f6f7f2;
+      --white: #fff;
+      --ink: #302431;
+      --muted: #77717a;
+      --line: #e6e3e3;
+      --green: #467b59;
+      --display: "Space Grotesk", sans-serif;
+      --body: "DM Sans", sans-serif;
+      }
+.desk-root { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); min-height: 100vh; }
+.desk-root button, .desk-root input, .desk-root select { font: inherit; }
+.desk-root button { color: inherit; }
+.desk-root .shell { min-height: 100vh; display: flex; flex-direction: column; }
+.desk-root .topbar { height: 72px; flex: 0 0 72px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 30px; background: var(--white); border-bottom: 1px solid var(--line); }
+.desk-root .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--plum); text-decoration: none; font: 600 17px var(--display); }
+.desk-root .brand-mark { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 12px; color: var(--plum); background: var(--lime); }
+.desk-root .brand-mark svg { width: 21px; height: 21px; }
+.desk-root .top-actions { display: flex; align-items: center; gap: 12px; }
+.desk-root .status { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+.desk-root .status-dot { width: 7px; height: 7px; background: #a9b49f; border-radius: 50%; }
+.desk-root .status[data-listening="true"] { color: var(--green); border-color: color-mix(in srgb, var(--green) 25%, white); background: color-mix(in srgb, var(--green) 7%, white); }
+.desk-root .status[data-listening="true"] .status-dot { background: var(--green); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 14%, transparent); }
+.desk-root .language { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); color: var(--plum); padding: 0 30px 0 12px; font-size: 13px; font-weight: 600; }
+.desk-root .new-chat { min-height: 40px; padding: 0 14px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); cursor: pointer; font-size: 13px; font-weight: 600; transition: background .2s, border-color .2s; }
+.desk-root .new-chat:hover, .desk-root .icon-button:hover { background: var(--paper); border-color: #cbc4cb; }
+.desk-root .new-chat svg { width: 16px; height: 16px; }
+.desk-root .workspace { display: grid; grid-template-columns: minmax(285px, 350px) minmax(0, 1fr); flex: 1; min-height: calc(100vh - 72px); }
+.desk-root .conversation { min-height: 0; display: flex; flex-direction: column; background: var(--white); border-right: 1px solid var(--line); }
+.desk-root .conversation-head { padding: 25px 23px 19px; border-bottom: 1px solid var(--line); }
+.desk-root .eyebrow { margin: 0; color: var(--plum-soft); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+.desk-root .conversation-head h1 { margin: 8px 0 0; color: var(--plum); font: 600 23px/1.2 var(--display); }
+.desk-root .conversation-head p:last-child { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.desk-root .messages { flex: 1; padding: 23px 18px; display: flex; flex-direction: column; gap: 18px; overflow: auto; }
+.desk-root .message { max-width: 92%; display: flex; flex-direction: column; gap: 6px; align-self: flex-start; }
+.desk-root .message.user { align-self: flex-end; }
+.desk-root .sender { color: var(--muted); font-size: 11px; font-weight: 600; }
+.desk-root .bubble { padding: 12px 14px; border: 1px solid var(--line); border-radius: 4px 14px 14px 14px; background: var(--paper); color: var(--ink); font-size: 13px; line-height: 1.6; }
+.desk-root .message.user .bubble { border-color: var(--plum); border-radius: 14px 4px 14px 14px; background: var(--plum); color: white; }
+.desk-root .starter { display: inline-flex; width: fit-content; align-items: center; gap: 6px; padding: 6px 9px; border: 1px solid #e1e8c9; border-radius: 99px; background: #f7faee; color: #52662e; font-size: 11px; font-weight: 600; }
+.desk-root .starter svg { width: 13px; height: 13px; }
+.desk-root .composer { display: flex; align-items: center; gap: 8px; padding: 14px; border-top: 1px solid var(--line); }
+.desk-root .composer input { width: 100%; min-width: 0; height: 43px; padding: 0 12px; border: 1px solid var(--line); border-radius: 7px; outline: 0; background: var(--paper); color: var(--ink); font-size: 13px; }
+.desk-root .composer input:focus { border-color: var(--plum-soft); box-shadow: 0 0 0 3px color-mix(in srgb, var(--plum-soft) 12%, transparent); }
+.desk-root .send { width: 43px; height: 43px; flex: 0 0 43px; display: grid; place-items: center; border: 0; border-radius: 7px; background: var(--plum); color: white; cursor: pointer; transition: background .2s, transform .2s; }
+.desk-root .send:hover { background: var(--plum-soft); transform: translateY(-1px); }
+.desk-root .send svg { width: 18px; height: 18px; }
+.desk-root .stage { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: clamp(24px, 4vw, 56px); background: var(--paper); }
+.desk-root .stage-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; max-width: 1080px; width: 100%; margin: 0 auto 24px; }
+.desk-root .stage-heading h2 { max-width: 680px; margin: 9px 0 0; color: var(--plum); font: 600 clamp(27px, 3vw, 39px)/1.12 var(--display); }
+.desk-root .stage-heading .caption { margin: 9px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.desk-root .help-link { flex: 0 0 auto; padding: 8px 0; color: var(--plum-soft); font-size: 13px; font-weight: 600; text-decoration: none; }
+.desk-root .help-link:hover { color: var(--plum); text-decoration: underline; }
+.desk-root .voice-scene { position: relative; isolation: isolate; width: min(100%, 1080px); min-height: 360px; flex: 1; margin: 0 auto; overflow: hidden; border-radius: 12px; background: var(--plum); box-shadow: 0 18px 50px color-mix(in srgb, var(--plum) 15%, transparent); }
+.desk-root .scene-photo { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 62% 45%; }
+.desk-root .scene-overlay { position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, color-mix(in srgb, var(--plum) 85%, transparent) 0%, color-mix(in srgb, var(--plum) 66%, transparent) 44%, color-mix(in srgb, var(--plum) 22%, transparent) 100%); }
+.desk-root .scene-top { position: absolute; top: 20px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.desk-root .scene-label, .desk-root .scene-secure { display: inline-flex; align-items: center; gap: 7px; padding: 8px 11px; border: 1px solid color-mix(in srgb, white 35%, transparent); border-radius: 99px; background: color-mix(in srgb, var(--plum) 46%, transparent); color: white; font-size: 11px; font-weight: 600; backdrop-filter: blur(8px); }
+.desk-root .scene-label svg, .desk-root .scene-secure svg { width: 14px; height: 14px; }
+.desk-root .scene-content { position: absolute; top: 50%; left: clamp(24px, 6vw, 75px); width: min(480px, calc(100% - 48px)); transform: translateY(-50%); color: white; }
+.desk-root .scene-content .welcome { margin: 0 0 12px; color: var(--lime); font-size: 13px; font-weight: 700; }
+.desk-root .scene-content h3 { margin: 0; font: 600 clamp(29px, 4vw, 48px)/1.08 var(--display); }
+.desk-root .scene-content > p:last-of-type { max-width: 400px; margin: 15px 0 0; color: color-mix(in srgb, white 88%, transparent); font-size: 15px; line-height: 1.65; }
+.desk-root .scene-bottom { position: absolute; bottom: 19px; left: 20px; right: 20px; display: flex; justify-content: space-between; align-items: flex-end; gap: 14px; }
+.desk-root .official-note { display: flex; align-items: flex-start; gap: 9px; max-width: 340px; padding: 10px 12px; border: 1px solid color-mix(in srgb, white 27%, transparent); border-radius: 7px; background: color-mix(in srgb, var(--plum) 58%, transparent); color: white; font-size: 11px; line-height: 1.5; backdrop-filter: blur(8px); }
+.desk-root .official-note svg { flex: 0 0 15px; width: 15px; height: 15px; color: var(--lime); }
+.desk-root .voice-control { display: flex; align-items: center; gap: 12px; padding: 11px 15px; border: 1px solid color-mix(in srgb, white 35%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--plum) 78%, transparent); color: white; backdrop-filter: blur(12px); }
+.desk-root .mic-button { width: 56px; height: 56px; flex: 0 0 56px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--lime); color: var(--plum); cursor: pointer; box-shadow: 0 0 0 5px color-mix(in srgb, var(--lime) 19%, transparent); transition: transform .2s, box-shadow .2s; }
+.desk-root .mic-button:hover { transform: scale(1.04); box-shadow: 0 0 0 8px color-mix(in srgb, var(--lime) 24%, transparent); }
+.desk-root .mic-button[data-listening="true"] { animation: desk-pulse 1.7s ease-out infinite; }
+.desk-root .mic-button svg { width: 22px; height: 22px; }
+.desk-root .control-copy { min-width: 126px; }
+.desk-root .control-copy strong { display: block; font-size: 13px; }
+.desk-root .control-copy span { display: block; margin-top: 3px; color: color-mix(in srgb, white 73%, transparent); font-size: 11px; }
+.desk-root .below-scene { width: min(100%, 1080px); margin: 15px auto 0; display: flex; justify-content: space-between; align-items: center; gap: 18px; color: var(--muted); font-size: 12px; }
+.desk-root .below-scene .secure-copy { display: inline-flex; align-items: center; gap: 7px; }
+.desk-root .below-scene svg { width: 14px; height: 14px; color: var(--plum-soft); }
+.desk-root .toast { position: fixed; z-index: 5; right: 20px; bottom: 20px; max-width: min(360px, calc(100vw - 40px)); padding: 12px 15px; border-radius: 8px; background: var(--plum); color: white; font-size: 13px; box-shadow: 0 8px 25px color-mix(in srgb, var(--plum) 25%, transparent); opacity: 0; transform: translateY(8px); pointer-events: none; transition: .2s; }
+.desk-root .toast.show { opacity: 1; transform: translateY(0); }
+@keyframes desk-pulse { 0% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--lime) 20%, transparent); } 70% { box-shadow: 0 0 0 13px color-mix(in srgb, var(--lime) 0%, transparent); } 100% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--lime) 0%, transparent); } }
+@media (max-width: 820px) {
+  .desk-root .topbar { height: 64px; flex-basis: 64px; padding: 0 18px; }
+  .desk-root .workspace { grid-template-columns: minmax(250px, 290px) minmax(0, 1fr); min-height: calc(100vh - 64px); }
+  .desk-root .stage { padding: 28px 22px; }
+  .desk-root .stage-heading { align-items: flex-start; }
+  .desk-root .help-link { display: none; }
+  .desk-root .voice-scene { min-height: 450px; }
+  .desk-root .scene-bottom { align-items: flex-end; }
+}
+@media (max-width: 640px) {
+  .desk-root .topbar { padding: 0 14px; }
+  .desk-root .brand { font-size: 15px; }
+  .desk-root .brand-mark { width: 34px; height: 34px; }
+  .desk-root .top-actions { gap: 7px; }
+  .desk-root .status { min-height: 31px; padding: 0 9px; font-size: 10px; }
+  .desk-root .language { width: 43px; min-height: 35px; padding: 0 4px; font-size: 0; }
+  .desk-root .language option { font-size: 13px; }
+  .desk-root .new-chat { width: 38px; height: 38px; min-height: 38px; padding: 0; justify-content: center; font-size: 0; }
+  .desk-root .workspace { display: flex; flex-direction: column; min-height: calc(100vh - 64px); }
+  .desk-root .stage { order: 1; padding: 25px 16px 20px; }
+  .desk-root .stage-heading { margin-bottom: 17px; }
+  .desk-root .stage-heading h2 { font-size: 30px; }
+  .desk-root .stage-heading .caption { font-size: 13px; }
+  .desk-root .voice-scene { min-height: 460px; flex: none; }
+  .desk-root .scene-photo { object-position: 61% center; }
+  .desk-root .scene-overlay { background: linear-gradient(180deg, color-mix(in srgb, var(--plum) 32%, transparent), color-mix(in srgb, var(--plum) 69%, transparent) 46%, color-mix(in srgb, var(--plum) 87%, transparent)); }
+  .desk-root .scene-top { top: 13px; left: 13px; right: 13px; }
+  .desk-root .scene-label, .desk-root .scene-secure { padding: 7px 9px; font-size: 10px; }
+  .desk-root .scene-content { top: 48%; left: 21px; width: calc(100% - 42px); }
+  .desk-root .scene-content h3 { font-size: 34px; }
+  .desk-root .scene-content > p:last-of-type { font-size: 14px; }
+  .desk-root .scene-bottom { bottom: 15px; left: 14px; right: 14px; flex-direction: column; align-items: stretch; }
+  .desk-root .official-note { max-width: none; }
+  .desk-root .voice-control { justify-content: center; }
+  .desk-root .below-scene { align-items: flex-start; flex-direction: column; gap: 7px; font-size: 11px; }
+  .desk-root .conversation { order: 2; min-height: 350px; border-top: 1px solid var(--line); border-right: 0; }
+  .desk-root .conversation-head { padding: 19px 17px 15px; }
+  .desk-root .conversation-head h1 { font-size: 21px; }
+  .desk-root .messages { max-height: 320px; padding: 17px 14px; }
+  .desk-root .composer { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk-root *, .desk-root *::before, .desk-root *::after, .desk-root *::before, .desk-root *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+
+/* ==========================================================================
+   Additions needed once the mock becomes a live app
+   ========================================================================== */
+
+/* Desktop: fix the shell to the viewport so only the chat list and stage scroll, not the page. */
+.desk-root .shell { height: 100dvh; min-height: 0; }
+.desk-root .workspace { min-height: 0; overflow: hidden; grid-template-rows: minmax(0, 1fr); }
+.desk-root .stage { overflow-y: auto; }
+.desk-root .messages { min-height: 0; scroll-behavior: smooth; }
+.desk-root .bubble { overflow-wrap: anywhere; white-space: pre-wrap; }
+.desk-root .conversation-head h1 { overflow-wrap: anywhere; }
+
+.desk-root :focus-visible { outline: 2px solid var(--plum-soft); outline-offset: 2px; }
+.desk-root .voice-scene :focus-visible { outline-color: var(--lime); }
+
+.desk-root .new-chat:disabled { opacity: .5; cursor: not-allowed; }
+.desk-root .user-chip { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 13px; font-weight: 600; }
+.desk-root .help-link { background: none; border: 0; cursor: pointer; font-family: inherit; }
+
+/* Live transcript line under the scene copy */
+.desk-root .scene-caption { margin: 16px 0 0; padding-left: 12px; border-left: 2px solid var(--lime); color: white; font-size: 13px; line-height: 1.5; max-width: 400px; overflow-wrap: anywhere; }
+
+/* Streaming / thinking bubbles */
+.desk-root .message.user .bubble.partial { opacity: .8; font-style: italic; }
+.desk-root .bubble.thinking { color: var(--muted); }
+.desk-root .typing-dots::after { content: "…"; animation: desk-blink 1s steps(2, start) infinite; }
+@keyframes desk-blink { to { visibility: hidden; } }
+
+/* Matched schemes tray (sits between the messages and the composer) */
+.desk-root .matches { display: grid; gap: 10px; padding: 14px; border-top: 1px solid var(--line); background: var(--paper); max-height: 48%; overflow-y: auto; }
+.desk-root .matches-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.desk-root .matches-head h2 { margin: 0; color: var(--plum); font: 600 14px var(--display); }
+.desk-root .matches-toggle { padding: 4px 8px; border: 0; border-radius: 6px; background: none; color: var(--plum-soft); font-size: 12px; font-weight: 600; cursor: pointer; }
+.desk-root .matches-toggle:hover { color: var(--plum); text-decoration: underline; }
+.desk-root .matches-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.desk-root .matches nav a, .desk-root .matches nav button, .desk-root .matches nav span[aria-disabled] { height: 34px; min-width: 34px; padding: 0 10px; font-size: 12px; }
+
+@media (max-width: 640px) {
+  /* Phones: the page scrolls normally (stage first, then conversation). */
+  .desk-root .shell { height: auto; min-height: 100dvh; }
+  .desk-root .workspace { overflow: visible; }
+  .desk-root .stage { overflow: visible; }
+  .desk-root .user-chip { display: none; }
+  .desk-root .matches { max-height: none; }
+
+  /* Scene: lay content out in normal flow so text, caption and controls can never overlap. */
+  .desk-root .voice-scene { display: flex; flex-direction: column; min-height: 460px; }
+  .desk-root .scene-content { position: relative; top: auto; left: auto; transform: none; width: auto; margin: 76px 21px 22px; }
+  .desk-root .scene-bottom { position: relative; bottom: auto; left: auto; right: auto; margin: auto 14px 15px; }
+
+  /* Language picker: the design hides its text on phones, so show a globe icon instead of an empty box. */
+  .desk-root .language {
+    appearance: none; -webkit-appearance: none; color: transparent; padding: 0;
+    background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23462d43' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18'/%3E%3C/svg%3E") center / 19px no-repeat;
+  }
+  .desk-root .language option { color: var(--ink); }
+}
+
+.desk-root .mute-btn { min-height: 34px; padding: 0 12px; border: 1px solid color-mix(in srgb, white 35%, transparent); border-radius: 8px; background: transparent; color: white; font-size: 12px; font-weight: 600; cursor: pointer; transition: background .2s; }
+.desk-root .mute-btn:hover { background: color-mix(in srgb, white 14%, transparent); }
+.desk-root .mute-btn[aria-pressed="true"] { background: color-mix(in srgb, white 20%, transparent); }
+
+/* Large screens: let the stage use the space instead of leaving wide empty gutters. */
+@media (min-width: 1600px) {
+  .desk-root .stage-heading,
+  .desk-root .voice-scene,
+  .desk-root .below-scene { width: min(100%, 1280px); max-width: 1280px; }
+}
+
+/* Narrow phones: keep the whole top bar on screen (status becomes a dot; its text stays for screen readers). */
+@media (max-width: 430px) {
+  .desk-root .status { padding: 0 11px; gap: 0; }
+  .desk-root .status > span:last-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+@media (max-width: 360px) {
+  .desk-root .brand-text { display: none; }
+}
+
+/* Tablets and small laptops: icon-only secondary buttons so the top bar never overflows. */
+@media (max-width: 1024px) {
+  .desk-root .new-chat { width: 40px; padding: 0; justify-content: center; font-size: 0; }
+  .desk-root .top-actions > div > button[aria-haspopup="menu"] > span:nth-child(2) { display: none; }
+}

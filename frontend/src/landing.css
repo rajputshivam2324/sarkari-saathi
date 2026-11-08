@@ -1,0 +1,96 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: #f6f7f2;
+  --color-foreground: #302431;
+  --color-card: #ffffff;
+  --color-card-foreground: #302431;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #302431;
+  --color-primary: #462d43;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #ecefe3;
+  --color-secondary-foreground: #462d43;
+  --color-muted: #ecefe3;
+  --color-muted-foreground: #77717a;
+  --color-accent: #ecefe3;
+  --color-accent-foreground: #462d43;
+  --color-destructive: #dc2626;
+  --color-border: #e6e3e3;
+  --color-input: #e6e3e3;
+  --color-ring: #80506a;
+  --color-lime: #c8e56a;
+  --color-plum-soft: #80506a;
+
+  --color-sidebar-background: #f6f7f2;
+  --color-sidebar-foreground: #302431;
+  --color-sidebar-primary: #462d43;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #ecefe3;
+  --color-sidebar-accent-foreground: #462d43;
+  --color-sidebar-border: #e6e3e3;
+  --color-sidebar-ring: #80506a;
+
+  --font-display: "Space Grotesk", "DM Sans", system-ui, sans-serif;
+  --font-sans: "DM Sans", system-ui, sans-serif;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+/* ─── Base layer ─── */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-border);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-background);
+    color: var(--color-foreground);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* ─── Custom utility classes ─── */
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* Hero wash overlay gradient */
+.bg-hero-wash {
+  background: linear-gradient(
+    to right,
+    rgba(246, 247, 242, 0.92) 0%,
+    rgba(246, 247, 242, 0.78) 45%,
+    rgba(246, 247, 242, 0.35) 100%
+  );
+}
+
+@media (max-width: 768px) {
+  .bg-hero-wash {
+    background: linear-gradient(
+      to top,
+      rgba(246, 247, 242, 0.95) 0%,
+      rgba(246, 247, 242, 0.8) 60%,
+      rgba(246, 247, 242, 0.5) 100%
+    );
+  }
+}

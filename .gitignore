@@ -1,0 +1,32 @@
+.env
+.env.local
+.env.*.local
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+.ruff_cache/
+.pytest_cache/
+node_modules/
+frontend/dist/
+backend/.data/
+backend/.venv/
+*.log
+.DS_Store
+.gcloud/
+*.wav
+*.mp3
+!frontend/public/**
+.taste-skill/chrome-*
+.taste-skill/shots/
+shots/
+
+# Tool scratch / generated / unused (kept on disk, not committed)
+.playwright-mcp/
+.taste-skill/gate/
+*.tsbuildinfo
+frontend/public/assets/
+
+# Editor swap files and design-tool metadata
+*.swp
+.taste-skill/
