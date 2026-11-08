@@ -5,6 +5,7 @@ from typing import Any
 SCHEMES: list[dict[str, Any]] = [
     {
         "id": "pm-kisan",
+        "myscheme_slug": "pm-kisan",
         "name": "PM-KISAN",
         "name_hi": "प्रधानमंत्री किसान सम्मान निधि",
         "category": "agriculture",
@@ -30,6 +31,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "ayushman-bharat",
+        "myscheme_slug": "ab-pmjay",
         "name": "Ayushman Bharat – PM-JAY",
         "name_hi": "आयुष्मान भारत – प्रधानमंत्री जन आरोग्य योजना",
         "category": "health",
@@ -57,6 +59,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "pmay-u",
+        "myscheme_slug": "pmay-u",
         "name": "Pradhan Mantri Awas Yojana – Urban",
         "name_hi": "प्रधानमंत्री आवास योजना – शहरी",
         "category": "housing",
@@ -84,6 +87,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "pmay-g",
+        "myscheme_slug": "pmay-g",
         "name": "Pradhan Mantri Awas Yojana – Gramin",
         "name_hi": "प्रधानमंत्री आवास योजना – ग्रामीण",
         "category": "housing",
@@ -110,6 +114,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "ujjwala",
+        "myscheme_slug": "pmuy",
         "name": "Pradhan Mantri Ujjwala Yojana",
         "name_hi": "प्रधानमंत्री उज्ज्वला योजना",
         "category": "energy",
@@ -138,6 +143,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "mgnrega",
+        "myscheme_slug": "mgnrega",
         "name": "MGNREGA",
         "name_hi": "महात्मा गांधी राष्ट्रीय ग्रामीण रोजगार गारंटी योजना",
         "category": "employment",
@@ -168,6 +174,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "pmjdy",
+        "myscheme_slug": "pmjdy",
         "name": "Pradhan Mantri Jan Dhan Yojana",
         "name_hi": "प्रधानमंत्री जन धन योजना",
         "category": "finance",
@@ -194,6 +201,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "atal-pension",
+        "myscheme_slug": "apy",
         "name": "Atal Pension Yojana",
         "name_hi": "अटल पेंशन योजना",
         "category": "pension",
@@ -220,6 +228,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "pm-fasal-bima",
+        "myscheme_slug": "pmfby",
         "name": "Pradhan Mantri Fasal Bima Yojana",
         "name_hi": "प्रधानमंत्री फसल बीमा योजना",
         "category": "agriculture",
@@ -248,6 +257,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "mudra",
+        "myscheme_slug": "pmmy",
         "name": "Pradhan Mantri MUDRA Yojana",
         "name_hi": "प्रधानमंत्री मुद्रा योजना",
         "category": "livelihood",
@@ -277,6 +287,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "standup-india",
+        "myscheme_slug": "sui",
         "name": "Stand-Up India",
         "name_hi": "स्टैंड-अप इंडिया",
         "category": "livelihood",
@@ -306,6 +317,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "pm-svanidhi",
+        "myscheme_slug": "pm-svanidhi",
         "name": "PM SVANidhi",
         "name_hi": "पीएम स्वनिधि",
         "category": "livelihood",
@@ -413,6 +425,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "pm-vishwakarma",
+        "myscheme_slug": "pmv",
         "name": "PM Vishwakarma",
         "name_hi": "पीएम विश्वकर्मा",
         "category": "livelihood",
@@ -443,6 +456,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "nsap-ignoaps",
+        "myscheme_slug": "nsap-ignoaps",
         "name": "Indira Gandhi National Old Age Pension Scheme",
         "name_hi": "इंदिरा गांधी राष्ट्रीय वृद्धावस्था पेंशन योजना",
         "category": "pension",
@@ -471,6 +485,7 @@ SCHEMES: list[dict[str, Any]] = [
     },
     {
         "id": "nrlm",
+        "myscheme_slug": "day-nrlm",
         "name": "Deendayal Antyodaya Yojana – NRLM",
         "name_hi": "दीनदयाल अंत्योदय योजना – राष्ट्रीय ग्रामीण आजीविका मिशन",
         "category": "livelihood",

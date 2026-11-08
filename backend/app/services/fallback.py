@@ -12,6 +12,7 @@ import re
 from typing import Any
 
 from app.services import languages as L
+from app.services import scheme_details as SD
 
 # --------------------------------------------------------------------------------------
 # Questions: key -> (English intent for the LLM, English text, Hindi text)
@@ -197,6 +198,119 @@ def question_key_from_text(question: str) -> str:
     return ""
 
 
+ACK_NEXT_EN = [
+    "Sure. Would you like to know how to apply, or which documents to keep ready?",
+    "Okay. I can tell you who is eligible, or walk you through how to apply. Which would help?",
+]
+ACK_NEXT_HI = [
+    "ठीक है। क्या मैं बताऊँ कि आवेदन कैसे करना है, या कौन से कागज़ तैयार रखने हैं?",
+    "जी। मैं बता सकता हूँ कि कौन पात्र है, या आवेदन कैसे करें। आपको क्या जानना है?",
+]
+
+_STEP = re.compile(r"^\s*(?:step\s*\d+\s*[:.\-]?|\d+[.)])\s*", re.IGNORECASE)
+_DOCLINE = re.compile(r"document|aadhaar|aadhar|passbook|certificate|proof|photo|ration card|bank|दस्तावेज|आधार|पासबुक|प्रमाण|फोटो|राशन", re.IGNORECASE)
+_SHOW_STEPS_EN = "The full steps and links are on your screen under Details."
+_SHOW_STEPS_HI = "पूरे चरण और लिंक आपकी स्क्रीन पर Details में हैं।"
+
+
+def _bullets(md: str, limit: int = 3) -> list[str]:
+    """First few meaningful lines of a section, as plain sentences."""
+    out: list[str] = []
+    for raw in SD.md_to_text(md).splitlines():
+        line = re.sub(r"^\s*(?:[-*•]|\d{1,2}[.)])\s*", "", raw).strip()
+        line = re.sub(r"^\d{1,2}[.)]\s+", "", line)
+        if len(line) >= 12:
+            line = line.rstrip(" ;,")
+            out.append(line if line.endswith((".", "।", "!", "?")) else line + ".")
+        if len(out) >= limit:
+            break
+    return out
+
+
+_URL = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+
+
+def _clip_words(text: str, n: int) -> str:
+    text = _URL.sub("", text)
+    text = re.sub(r"\s{2,}", " ", text).strip()
+    w = text.split()
+    return text if len(w) <= n else " ".join(w[:n]).rstrip(",;: ") + "…"
+
+
+def _apply_phrase(rec: dict, hi: bool) -> str:
+    modes = " ".join((a.get("mode") or "") for a in rec.get("apply") or []).lower()
+    ways: list[str] = []
+    if "online" in modes and "csc" not in modes.replace("online - via csc", "") or ("online" in modes):
+        ways.append("ऑनलाइन आधिकारिक पोर्टल पर" if hi else "online on the official portal")
+    if "csc" in modes:
+        ways.append("कॉमन सर्विस सेंटर के ज़रिए" if hi else "through a Common Service Centre")
+    if "offline" in modes:
+        ways.append("संबंधित दफ़्तर में जाकर" if hi else "at the concerned office")
+    ways = list(dict.fromkeys(ways))
+    if not ways:
+        return ""
+    joiner = " या " if hi else " or "
+    return ("आप " + joiner.join(ways) + " आवेदन कर सकते हैं।") if hi else ("You can apply " + joiner.join(ways) + ".")
+
+
+def _steps(rec: dict, n: int = 4) -> list[str]:
+    """Spoken-length application steps (online route first)."""
+    apply = sorted(rec.get("apply") or [], key=lambda a: 0 if (a.get("mode") or "").lower() == "online" else 1)
+    for a in apply:
+        lines = [_STEP.sub("", l).strip() for l in SD.md_to_text(a.get("steps_md")).splitlines() if _STEP.match(l)]
+        lines = [_clip_words(l, 22) for l in lines if len(l) > 8]
+        if lines:
+            return lines[:n]
+    return []
+
+
+def _details_answer(topic: str | None, rec: dict | None, hi: bool) -> str | None:
+    """A concrete answer to a follow-up, straight from the official record. None if the record lacks it."""
+    if not rec:
+        return None
+    name = rec.get("short_title") or rec.get("name") or ""
+    if topic == "eligibility" and rec.get("eligibility_md"):
+        b = _bullets(rec["eligibility_md"], 3)
+        if b:
+            tail = (" कुछ लोग इस योजना से बाहर हैं, इसलिए आधिकारिक पेज पर सूची ज़रूर देखिए।" if hi else " Some people are excluded, so please check the list on the official page.") if rec.get("exclusions_md") else ""
+            lead = f"{name} के लिए: " if hi else f"For {name}: "
+            return (lead + " ".join(_clip_words(x, 34) for x in b) + tail).replace("..", ".").replace(".।", "।")
+    if topic == "benefits" and rec.get("benefits_md"):
+        b = _bullets(rec["benefits_md"], 2)
+        if b:
+            return (f"{name} में आपको मिलता है: " if hi else f"With {name} you get: ") + " ".join(_clip_words(x, 36) for x in b)
+    if topic == "apply":
+        steps = _steps(rec)
+        if steps:
+            lead = "आवेदन ऐसे करें। " if hi else "Here is how to apply. "
+            body = " ".join(f"{i}. {x}" if False else x for i, x in enumerate(steps, 1))
+            tail = (" " + _SHOW_STEPS_HI) if hi else (" " + _SHOW_STEPS_EN)
+            return lead + body + tail
+    if topic == "docs":
+        found: list[str] = []
+        probes = [  # (pattern, English label, Hindi label): only what the official steps actually mention
+            (r"aadhaar|aadhar|आधार", "Aadhaar", "आधार"),
+            (r"passbook|bank (?:account|detail)|बैंक", "bank passbook or account details", "बैंक पासबुक या खाते की जानकारी"),
+            (r"land (?:record|holding|registration|paper|detail|ownership|tenure)|khasra|khata|khatauni|ज़मीन|जमीन|खसरा|खतौनी", "land ownership or tenancy papers", "ज़मीन के मालिकाना या पट्टे के कागज़"),
+            (r"ration card|राशन", "ration card", "राशन कार्ड"),
+            (r"income certificate|आय प्रमाण", "income certificate", "आय प्रमाण पत्र"),
+            (r"caste certificate|जाति प्रमाण", "caste certificate", "जाति प्रमाण पत्र"),
+            (r"photograph|photo|फोटो", "a passport-size photo", "पासपोर्ट साइज़ फोटो"),
+            (r"mobile number|मोबाइल", "a mobile number linked to Aadhaar", "आधार से जुड़ा मोबाइल नंबर"),
+        ]
+        blob = " ".join(SD.md_to_text(a.get("steps_md")) for a in rec.get("apply") or [])
+        for pat, en, hin in probes:
+            if re.search(pat, blob, re.IGNORECASE):
+                found.append(hin if hi else en)
+        if found:
+            joined = ", ".join(found[:-1]) + ((" और " if hi else " and ") + found[-1] if len(found) > 1 else found[0] if len(found) == 1 else "")
+            joined = joined if len(found) > 1 else found[0]
+            lead = "आधिकारिक आवेदन प्रक्रिया में इनका ज़िक्र है: " if hi else "The official application steps mention: "
+            tail = " पूरी सूची आधिकारिक पेज पर देख लीजिए।" if hi else " Please check the official page for the complete list."
+            return lead + joined + "." + tail
+    return None
+
+
 def _pick(pool: list[str], turn: int) -> str:
     return pool[turn % len(pool)]
 
@@ -227,8 +341,9 @@ def _main_need(profile: dict[str, Any]) -> str | None:
     return needs[0] if needs else None
 
 
-def _present(profile, candidates, lang, turn, question_key) -> str:
+def _present(profile, candidates, lang, turn, question_key, records=None) -> str:
     hi = lang == "hi-IN"
+    records = records or {}
     need = _main_need(profile)
     rel = profile.get("relation")
     np = (NEED_PHRASE_HI if hi else NEED_PHRASE_EN).get(need or "", "")
@@ -244,26 +359,44 @@ def _present(profile, candidates, lang, turn, question_key) -> str:
     top = candidates[:2]
     first = top[0]
     name = (first.get("name_hi") or first.get("name")) if hi else first.get("name")
-    desc = _first_sentence(first.get("description_hi") if hi else first.get("description"))
-    if hi:
-        parts.append(f"{name} से आपको मदद मिल सकती है। {desc}।" if desc else f"{name} आपके काम की हो सकती है।")
+    rec = records.get(first.get("slug") or "")
+    if rec:
+        short = rec.get("short_title") or name
+        benefit = " ".join(_clip_words(x, 30) for x in _bullets(rec.get("benefits_md") or "", 1))
+        who = " ".join(_clip_words(x, 26) for x in _bullets(rec.get("eligibility_md") or "", 1))
+        how = _apply_phrase(rec, hi)
+        if hi:
+            parts.append(f"{short} से आपको मदद मिल सकती है।")
+            if benefit: parts.append(f"फ़ायदा: {benefit}")
+            if who: parts.append(f"किसके लिए: {who}")
+        else:
+            parts.append(f"{short} may help.")
+            if benefit: parts.append(f"What you get: {benefit}")
+            if who: parts.append(f"Who it is for: {who}")
+        if how: parts.append(how)
     else:
-        parts.append(f"{name} may help. {desc}." if desc else f"{name} looks relevant for you.")
+        desc = _first_sentence(first.get("description_hi") if hi else first.get("description"))
+        if hi:
+            parts.append(f"{name} से आपको मदद मिल सकती है। {desc}।" if desc else f"{name} आपके काम की हो सकती है।")
+        else:
+            parts.append(f"{name} may help. {desc}." if desc else f"{name} looks relevant for you.")
 
     if len(top) > 1:
         second = top[1]
         n2 = (second.get("name_hi") or second.get("name")) if hi else second.get("name")
         parts.append(f"{n2} भी देखने लायक है।" if hi else f"{n2} is also worth a look.")
 
-    parts.append(_pick(CLOSE_HI if hi else CLOSE_EN, turn))
+    parts.append(_SHOW_STEPS_HI if (hi and rec) else _SHOW_STEPS_EN if rec else _pick(CLOSE_HI if hi else CLOSE_EN, turn))
     q = question_text(question_key, lang)
     if q:
         parts.append(q)
 
     text = " ".join(parts)
-    # Keep it speakable: drop the second scheme if the whole thing runs long.
-    if len(text.split()) > 60 and len(top) > 1:
-        parts.pop(2 if np else 1)
+    # Keep it speakable: drop the second scheme, then the "who it is for" line, if it runs long.
+    for marker in ("also worth a look", "भी देखने लायक", "Who it is for", "किसके लिए"):
+        if len(text.split()) <= 85:
+            break
+        parts = [p for p in parts if marker not in p]
         text = " ".join(parts)
     return text
 
@@ -282,12 +415,16 @@ def compose(
     topic: str | None = None,
     answered_key: str = "",
     answer_yes: bool | None = None,
+    records: dict | None = None,
+    has_presented: bool = False,
 ) -> str:
     """Build the spoken reply for one turn. `language` is already normalised."""
     hi, en = language == "hi-IN", language == "en-IN"
     rich = hi or en
 
     if mode == "chat":
+        if intent == "ack" and rich:
+            return _pick((ACK_NEXT_HI if hi else ACK_NEXT_EN) if has_presented else (ASK_HI if hi else ASK_EN), turn)
         if not rich:
             return L.greeting(language) if intent == "greeting" else L.follow_need(language)
         pool = {"greeting": (GREET_HI, GREET_EN), "thanks": (THANKS_HI, THANKS_EN), "bye": (BYE_HI, BYE_EN)}.get(
@@ -313,6 +450,10 @@ def compose(
     if mode == "followup":
         if not rich:
             return L.MATCH_SUFFIX[language]
+        first_rec = (records or {}).get(((candidates or [{}])[0]).get("slug") or "")
+        concrete = _details_answer(topic, first_rec, hi)
+        if concrete:
+            return concrete
         if topic == "apply":
             return APPLY_HI if hi else APPLY_EN
         if topic == "docs":
@@ -326,4 +467,4 @@ def compose(
         # Existing reviewed translations, but names joined naturally instead of "1. ... 2. ...".
         names = ", ".join(c.get("name") or c.get("name_hi") or "" for c in candidates[:2])
         return f"{L.MATCH_PREFIX[language]} {names}. {L.MATCH_SUFFIX[language]}"
-    return _present(profile, candidates, language, turn, question_key)
+    return _present(profile, candidates, language, turn, question_key, records)

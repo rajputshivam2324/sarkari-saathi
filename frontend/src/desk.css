@@ -17,8 +17,6 @@
       --body: "DM Sans", sans-serif;
       }
 .desk-root { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--body); min-height: 100vh; }
-.desk-root button, .desk-root input, .desk-root select { font: inherit; }
-.desk-root button { color: inherit; }
 .desk-root .shell { min-height: 100vh; display: flex; flex-direction: column; }
 .desk-root .topbar { height: 72px; flex: 0 0 72px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 0 30px; background: var(--white); border-bottom: 1px solid var(--line); }
 .desk-root .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--plum); text-decoration: none; font: 600 17px var(--display); }

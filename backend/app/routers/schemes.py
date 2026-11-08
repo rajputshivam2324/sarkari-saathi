@@ -1,5 +1,8 @@
-from fastapi import APIRouter, Query
+import re
 
+from fastapi import APIRouter, HTTPException, Query
+
+from app.services.scheme_details import get_details
 from app.services.myscheme import (
     _tokens,
     eager_warm,
@@ -60,3 +63,20 @@ async def search(q: str = Query(..., min_length=1), limit: int = Query(8, ge=1, 
 @router.post("/warm")
 async def warm() -> dict:
     return await eager_warm()
+
+
+@router.get("/{slug}/details")
+async def scheme_details(
+    slug: str,
+    lang: str = Query("en", pattern="^(en|hi)$"),
+) -> dict:
+    """Full official record for one scheme: benefits, eligibility, exclusions, how to apply, links.
+
+    Source: myScheme.gov.in. `slug` is validated before it is sent anywhere.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,80}", slug):
+        raise HTTPException(status_code=404, detail="Scheme not found")
+    details = await get_details(slug, lang)
+    if details is None:
+        raise HTTPException(status_code=404, detail="Details are not available for this scheme")
+    return details

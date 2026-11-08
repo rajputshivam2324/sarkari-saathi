@@ -1,5 +1,8 @@
-import { ExternalLink, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { ExternalLink, FileText, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { safeUrl } from "../lib/safeUrl";
+import { SchemeDetailsDialog } from "./SchemeDetailsDialog";
 
 export interface SchemeItem {
   id: string;
@@ -10,26 +13,20 @@ export interface SchemeItem {
   category?: string | null;
   short_title?: string | null;
   score?: number | null;
+  /** myScheme id: when present, the full official record (eligibility, how to apply, ...) can be opened. */
+  slug?: string | null;
 }
 
 interface SchemeCardProps {
   scheme: SchemeItem;
   /** Tighter spacing for narrow side panels. */
   compact?: boolean;
+  /** Language the details open in. */
+  lang?: "en" | "hi";
 }
 
-/** Only http(s) links are rendered as links, so a bad data row can never produce a javascript: URL. */
-function safeUrl(url: string | undefined): string | null {
-  if (!url) return null;
-  try {
-    const u = new URL(url);
-    return u.protocol === "https:" || u.protocol === "http:" ? u.href : null;
-  } catch {
-    return null;
-  }
-}
-
-export function SchemeCard({ scheme, compact = false }: SchemeCardProps) {
+export function SchemeCard({ scheme, compact = false, lang = "en" }: SchemeCardProps) {
+  const [open, setOpen] = useState(false);
   const href = safeUrl(scheme.official_url);
   const shortTitle = scheme.short_title && scheme.short_title !== scheme.name ? scheme.short_title : null;
   const description =
@@ -85,8 +82,20 @@ export function SchemeCard({ scheme, compact = false }: SchemeCardProps) {
         </p>
       )}
 
-      <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-4 text-sm">
-        <span className="text-muted-foreground">Official source</span>
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-border pt-4 text-sm">
+        {scheme.slug ? (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-haspopup="dialog"
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            <FileText aria-hidden="true" className="size-3.5" /> Details
+            <span className="sr-only"> for {scheme.name}: eligibility, benefits, how to apply</span>
+          </button>
+        ) : (
+          <span className="text-muted-foreground">Official source</span>
+        )}
         {href ? (
           <a
             href={href}
@@ -94,13 +103,16 @@ export function SchemeCard({ scheme, compact = false }: SchemeCardProps) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 font-semibold text-primary transition-colors hover:text-plum-soft"
           >
-            Open scheme <ExternalLink aria-hidden="true" className="size-3.5" />
+            Official site <ExternalLink aria-hidden="true" className="size-3.5" />
             <span className="sr-only"> (opens in a new tab)</span>
           </a>
         ) : (
           <span className="text-muted-foreground">Link unavailable</span>
         )}
       </div>
+      {open && scheme.slug && (
+        <SchemeDetailsDialog slug={scheme.slug} title={scheme.name} initialLang={lang} fallbackUrl={scheme.official_url} onClose={() => setOpen(false)} />
+      )}
     </article>
   );
 }

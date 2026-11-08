@@ -624,7 +624,7 @@ export function DeskPage() {
                     <ul className="matches-list">
                       {visibleMatches.map((s) => (
                         <li key={s.id}>
-                          <SchemeCard scheme={s} compact />
+                          <SchemeCard scheme={s} compact lang={lang === "hi-IN" ? "hi" : "en"} />
                         </li>
                       ))}
                     </ul>

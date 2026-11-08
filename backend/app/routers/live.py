@@ -6,6 +6,7 @@ import asyncio
 import base64
 import json
 import logging
+import socket
 import time
 import uuid
 from typing import Any
@@ -36,6 +37,32 @@ TTS_HANGOVER_SEC = 1.0
 TTS_SAFETY_SEC = 45.0
 # Drop tiny fragments (noise / coughs)
 MIN_UTTERANCE_CHARS = 4
+
+
+async def _open_stt(url: str, headers: dict[str, str]) -> "websockets.ClientConnection":
+    """Open the Gnani realtime speech-to-text socket.
+
+    api.vachana.ai advertises an IPv6 address first. On networks that advertise IPv6 but cannot
+    route it (common on home Wi-Fi and some mobile networks) the default connect hangs for the
+    whole timeout and never falls back, which silently kills live voice. So try IPv4 first (about
+    0.4 s when it works) and use the library default only if that fails at the network level.
+    An authentication error is raised immediately: retrying cannot fix it.
+    """
+    last: BaseException | None = None
+    for kwargs, timeout in (({"family": socket.AF_INET}, 8), ({}, 20)):
+        try:
+            return await websockets.connect(
+                url,
+                additional_headers=headers,
+                max_size=8 * 1024 * 1024,
+                open_timeout=timeout,
+                **kwargs,
+            )
+        except (OSError, TimeoutError, asyncio.TimeoutError) as exc:
+            last = exc
+            logger.warning("STT connect attempt failed (%s): %s", "IPv4" if kwargs else "default", exc)
+    assert last is not None
+    raise last
 
 
 def _user_from_token(token: str) -> User | None:
@@ -299,11 +326,8 @@ async def live_voice(websocket: WebSocket) -> None:
         flush_task = asyncio.create_task(_wait())
 
     try:
-        async with websockets.connect(
-            settings.gnani_stt_ws_url,
-            additional_headers=stt_headers,
-            max_size=8 * 1024 * 1024,
-        ) as stt_ws:
+        stt_conn = await _open_stt(settings.gnani_stt_ws_url, stt_headers)
+        async with stt_conn as stt_ws:
 
             async def pump_stt() -> None:
                 nonlocal language, pending_lang, speaking

@@ -113,8 +113,8 @@ _BYE = re.compile(r"\b(bye|goodbye|see you|that'?s all|nothing else|alvida)\b|�
 
 _YES = re.compile(r"\b(yes|yeah|yep|yup|sure|correct|right|haan|han|ji haan|ji)\b|^\s*(हाँ|हां|जी|जी हाँ|जी हां|है|ठीक)\b|हाँ|हां", re.IGNORECASE)
 _NO = re.compile(r"\b(no|nope|nahi|nahin|not|don'?t|do not|never)\b|नहीं|नही|नहि", re.IGNORECASE)
-_APPLY = re.compile(r"\b(how (?:do|can|to|should) (?:i |we )?(?:apply|register|enrol|enroll|get it)|apply|application|form|register)\b|आवेदन|अप्लाई|फॉर्म|रजिस्टर|कैसे (?:करें|करूं|मिलेगा|मिलेगी)", re.IGNORECASE)
-_DOCS = re.compile(r"\b(documents?|papers?|proof|certificate|aadhaar|aadhar)\b|दस्तावेज़?|कागज़?|कागज|प्रमाण", re.IGNORECASE)
+_APPLY = re.compile(r"\b(how (?:do|can|to|should) (?:i |we )?(?:apply|register|enrol|enroll|get it)|apply|application|form|register|avedan|aavedan|kaise kare|kaise karen|kaise karu)\b|आवेदन|अप्लाई|फॉर्म|रजिस्टर|कैसे (?:करें|करूं|मिलेगा|मिलेगी)", re.IGNORECASE)
+_DOCS = re.compile(r"\b(documents?|papers?|proof|certificate|aadhaar|aadhar|kagaz|dastavez|dastaavez)\b|दस्तावेज़?|कागज़?|कागज|प्रमाण", re.IGNORECASE)
 
 
 def is_yes(text: str) -> bool:
@@ -125,13 +125,31 @@ def is_no(text: str) -> bool:
     return bool(_NO.search(text or ""))
 
 
+_ELIGIBLE = re.compile(r"\b(eligible|eligibility|qualify|qualified|who can|can i get|am i|who is it for|criteria|patra|patrata|kaun le sakta)\b|पात्र|पात्रता|कौन ले सकता|किसे मिलेगा|मुझे मिलेगा|योग्य", re.IGNORECASE)
+_BENEFIT = re.compile(r"\b(benefit|benefits|how much|amount|money|get|receive|gives?|installment|instalment|fayda|labh|kitna|kitne|kitni|paisa|paise|milega|milegi)\b|फायदा|लाभ|कितना|कितने|कितनी|रुपये|पैसे|रकम|क्या मिलेगा|क्या मिलता", re.IGNORECASE)
+
+
 def followup_topic(text: str) -> str | None:
-    """What a follow-up question is about, for the rule-based dialogue: 'apply' | 'docs' | None."""
-    if _DOCS.search(text or ""):
+    """What a follow-up question is about: 'docs' | 'apply' | 'eligibility' | 'benefits' | None."""
+    t = text or ""
+    if _DOCS.search(t):
         return "docs"
-    if _APPLY.search(text or ""):
+    if _APPLY.search(t):
         return "apply"
+    if _ELIGIBLE.search(t):
+        return "eligibility"
+    if _BENEFIT.search(t):
+        return "benefits"
     return None
+
+
+_ACK = re.compile(
+    r"^\W*(?:ok(?:ay)?|okk+|k|alright|all right|fine|sure|cool|great|nice|good|got it|i see|i understand|understood|makes sense|"
+    r"theek hai|thik hai|accha|achha|acha|samajh gaya|samajh gayi|samajh aa gaya|ji|"
+    r"ठीक है|ठीक|अच्छा|अच्छी बात|समझ गया|समझ गई|समझ गयी|समझ आ गया|जी|ओके|ओके ठीक है|बढ़िया|बहुत अच्छा)"
+    r"(?:\W+(?:ok(?:ay)?|got it|thanks?|thank you|fine|sure|ji|जी|ठीक है|समझ गया|समझ गई|अच्छा|धन्यवाद|शुक्रिया))*\W*$",
+    re.IGNORECASE,
+)
 
 
 def _hit(text: str, patterns: list[str]) -> bool:
@@ -139,7 +157,7 @@ def _hit(text: str, patterns: list[str]) -> bool:
 
 
 def classify_intent(text: str) -> str:
-    """greeting | thanks | bye | other. Only used for short utterances."""
+    """greeting | thanks | bye | ack | other. Only used for short utterances."""
     t = (text or "").strip()
     if len(t.split()) > 6:
         return "other"
@@ -149,6 +167,8 @@ def classify_intent(text: str) -> str:
         return "greeting"
     if _THANKS.search(t):
         return "thanks"
+    if _ACK.match(t):
+        return "ack"
     return "other"
 
 
@@ -200,3 +220,53 @@ def public_profile(signals: dict[str, Any]) -> dict[str, Any]:
     """The subset that is safe/useful to show an LLM or return to the client."""
     keys = ("needs", "occupation", "location_type", "gender", "age", "relation")
     return {k: signals[k] for k in keys if signals.get(k) not in (None, [], "")}
+
+
+_SCRIPT_LANG: list[tuple[int, int, str]] = [
+    (0x0900, 0x097F, "hi-IN"),   # Devanagari (Hindi / Marathi)
+    (0x0980, 0x09FF, "bn-IN"),
+    (0x0A00, 0x0A7F, "pa-IN"),
+    (0x0A80, 0x0AFF, "gu-IN"),
+    (0x0B80, 0x0BFF, "ta-IN"),
+    (0x0C00, 0x0C7F, "te-IN"),
+    (0x0C80, 0x0CFF, "kn-IN"),
+    (0x0D00, 0x0D7F, "ml-IN"),
+]
+_INDIC_CODES = {"hi-IN", "mr-IN", "bn-IN", "pa-IN", "gu-IN", "ta-IN", "te-IN", "kn-IN", "ml-IN"}
+# Romanised Hindi ("Hinglish") markers: typing these means "answer in Hindi", not English.
+_HINGLISH = set(
+    "mujhe mera meri mere main mai hum hamara aap aapka aapki kya kaise kaun kab kahan kyun kitna kitni kitne hai hain tha thi "
+    "nahi nahin nhi chahiye chahie karna karni karo kare kijiye batao bataiye bataye batana madad yojana paisa paise ghar "
+    "kisan khet kheti naukri padhai ilaaj dawai ko ke ki ka se mein me par pe aur ya bhi toh to abhi lekin sab kuch koi "
+    "accha theek thik haan han ji bilkul samajh samjha dhanyavad shukriya".split()
+)
+
+
+def infer_reply_language(text: str, selected: str) -> str:
+    """Reply in the language the person is actually using, not just the dropdown.
+
+    Native script wins. Romanised Hindi gets Hindi. A real English sentence gets English even if
+    the dropdown says Hindi. A very short Latin reply ("ok", "thanks") keeps the current language.
+    """
+    letters = [c for c in (text or "") if c.isalpha()]
+    if not letters:
+        return selected
+    counts: dict[str, int] = {}
+    for c in letters:
+        o = ord(c)
+        for lo, hi, code in _SCRIPT_LANG:
+            if lo <= o <= hi:
+                counts[code] = counts.get(code, 0) + 1
+                break
+    indic = sum(counts.values())
+    if indic >= max(2, len(letters) * 0.3):
+        top = max(counts, key=counts.get)
+        if top == "hi-IN" and selected == "mr-IN":
+            return "mr-IN"          # Devanagari is shared; keep Marathi if that is what they chose
+        return top
+    words = re.findall(r"[a-z]+", (text or "").lower())
+    if any(w in _HINGLISH for w in words):
+        return selected if selected in _INDIC_CODES else "hi-IN"
+    if len(words) >= 3:
+        return "en-IN"
+    return selected

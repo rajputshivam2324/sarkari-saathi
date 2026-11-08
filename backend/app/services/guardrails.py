@@ -16,7 +16,7 @@ from typing import Any
 
 from app.schemes_data import SCHEMES
 
-MAX_WORDS = 60
+MAX_WORDS = 80
 ALWAYS_OK_NUMBERS = {112}  # national emergency number: the prompt tells the model to say it
 
 # ----- cleaning -------------------------------------------------------------------------
@@ -28,13 +28,33 @@ _ROLE_LABEL = re.compile(r"^\s*(?:sarkari saathi|सरकारी साथी
 _SENT_SPLIT = re.compile(r"(?<=[.!?।॥])\s+")
 
 
+_TYPO = str.maketrans({
+    "\u2010": "-", "\u2011": "-", "\u2012": "-", "\u2013": ", ", "\u2014": ", ", "\u2015": ", ",
+    "\u00a0": " ", "\u202f": " ", "\u2009": " ", "\u200a": " ", "\u2007": " ", "\u200b": "", "\u2060": "", "\ufeff": "",
+    "\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"',
+})
+# "PradhanMantriFasalBimaYojana" -> "Pradhan Mantri Fasal Bima Yojana". Only splits lower->Upper inside one
+# long token, so legitimate forms like "PM-KISAN", "iPhone" or "CSC" are left alone.
+_CAMEL = re.compile(r"\b(?=[A-Za-z]*[a-z][A-Z])[A-Za-z]{9,}\b")
+_GLUED_NUM = re.compile(r"\b(two|three|four|five|six|seven|eight|nine|ten|twenty|thirty|fifty|hundred|thousand|lakh)(percent|rupees|thousand|hundred|lakh)\b", re.IGNORECASE)
+
+
+def _unglue(m: re.Match) -> str:
+    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", m.group())
+
+
 def clean_for_speech(text: str) -> str:
-    t = (text or "").strip()
+    t = (text or "").strip().translate(_TYPO)
+    t = _CAMEL.sub(_unglue, t)
+    t = _GLUED_NUM.sub(lambda m: f"{m.group(1)} {m.group(2)}", t)
     t = _ROLE_LABEL.sub("", t)
     t = _URL.sub("", t)
     t = _EMOJI.sub("", t)
     t = _LIST_PREFIX.sub("", t)
     t = _MD.sub("", t)
+    t = re.sub(r"(\d)\s+%", r"\1%", t)
+    t = re.sub(r"\s+,", ",", t)
+    t = re.sub(r",\s*,+", ",", t)
     t = re.sub(r"\(\s*\)", "", t)
     t = re.sub(r"\s*\n+\s*", " ", t)
     t = re.sub(r"\s{2,}", " ", t).strip()
@@ -92,7 +112,7 @@ _SCRIPTS: dict[str, tuple[int, int]] = {
 }
 
 _PROMISE = re.compile(
-    r"\byou(?:'re| are) (?:definitely |surely |already )?eligible\b|\byou (?:will|'ll) (?:definitely |surely )?(?:get|receive)\b"
+    r"\byou(?:'re| are) (?:definitely |surely |already |fully )?(?:eligible|entitled)\b|\byou(?:'re| are) sure to\b|\byou (?:will|'ll) (?:definitely |surely )?(?:get|receive)\b"
     r"|\bguarantee[ds]?\b|\byou qualify\b|\bI(?:'ve| have) (?:applied|registered|submitted)\b"
     r"|आप पात्र हैं|आप पात्र है|आपको (?:जरूर|ज़रूर|पक्का) मिलेगा|आपको मिलेगा|गारंटी|मैंने (?:आवेदन|रजिस्टर)",
     re.IGNORECASE,
@@ -143,6 +163,39 @@ def _script_ratio(text: str, language: str) -> float:
         return sum(1 for c in letters if c.isascii()) / len(letters)
     lo, hi = _SCRIPTS.get(language, (0x0900, 0x097F))
     return sum(1 for c in letters if lo <= ord(c) <= hi) / len(letters)
+
+
+# Named portals/apps: a reply may only send people to one the official record itself names.
+_PORTALS: list[tuple[str, str, str]] = [
+    ("myScheme portal", r"my\s?scheme (?:portal|website|app)|myscheme पोर्टल|myscheme वेबसाइट", r"my\s?scheme\.gov\.in|myscheme"),
+    ("UMANG", r"\bumang\b|उमंग", r"umang|उमंग"),
+    ("DigiLocker", r"digi\s?locker|डिजिलॉकर", r"digi\s?locker|डिजिलॉकर"),
+    ("e-Shram portal", r"e-?shram (?:portal|website)", r"e-?shram"),
+    ("NSP", r"national scholarship portal|\bnsp\b", r"national scholarship portal|\bnsp\b|scholarships\.gov"),
+    ("Jan Seva / e-Mitra", r"jan\s?seva|e-?mitra|lok seva|sewa kendra|सेवा केंद्र", r"jan\s?seva|e-?mitra|lok seva|sewa kendra|सेवा केंद्र"),
+]
+
+# (label, pattern that must appear in the verified facts if the reply claims this document)
+_DOC_CLAIMS: list[tuple[str, str, str]] = [
+    ("photograph", r"\b(?:passport[- ]size(?:d)? )?(?:photo|photograph)s?\b|फोटो", r"photo|photograph|फोटो"),
+    ("income certificate", r"income certificate|आय प्रमाण", r"income certificate|आय प्रमाण"),
+    ("caste certificate", r"caste certificate|जाति प्रमाण", r"caste certificate|जाति प्रमाण"),
+    ("ration card", r"ration card|राशन कार्ड", r"ration card|राशन"),
+    ("birth certificate", r"birth certificate|जन्म प्रमाण", r"birth certificate|जन्म प्रमाण"),
+    ("land ownership certificate", r"land[- ]ownership (?:certificate|document|paper)", r"land[- ]ownership|land record|land holding|khasra|khatauni|land registration"),
+    ("PAN", r"\bPAN (?:card|number)\b", r"\bpan\b"),
+    ("voter ID", r"voter (?:id|card)", r"voter"),
+    ("domicile certificate", r"domicile certificate|निवास प्रमाण", r"domicile|निवास"),
+]
+
+
+def _doc_claims(text: str) -> list[tuple[str, str]]:
+    low = text.lower()
+    out: list[tuple[str, str]] = []
+    for label, claim_pat, need_pat in _DOC_CLAIMS:
+        if re.search(claim_pat, low, flags=re.IGNORECASE):
+            out.append((label, need_pat))
+    return out
 
 
 @dataclass
@@ -196,6 +249,19 @@ def sanitize(
             a = alias.lower()
             if a in low and a not in offered_blob:
                 return Verdict(False, text, f"mentions scheme not offered: {alias}")
+
+    # Portals/apps: only the ones the official record names (a wrong portal sends the person to the wrong place).
+    for label, claim_pat, need_pat in _PORTALS:
+        if re.search(claim_pat, text, flags=re.IGNORECASE) and not re.search(need_pat, allowed_text, flags=re.IGNORECASE):
+            return Verdict(False, text, f"names a portal not in verified facts: {label}")
+
+    # Documents: only name documents the official record actually mentions.
+    claim = _doc_claims(text)
+    if claim:
+        facts_low = allowed_text.lower()
+        for label, pat in claim:
+            if not re.search(pat, facts_low, flags=re.IGNORECASE):
+                return Verdict(False, text, f"names a document not in verified facts: {label}")
 
     # Right language (wrong-language speech would be read out in the wrong voice).
     if len(text.split()) >= 4:

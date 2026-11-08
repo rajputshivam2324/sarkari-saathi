@@ -98,6 +98,38 @@ export async function listSchemes(
   return res.json();
 }
 
+export type SchemeDetails = {
+  slug: string;
+  lang: string;
+  name: string;
+  short_title: string;
+  level: string | null;
+  ministry: string | null;
+  department: string | null;
+  categories: string[];
+  beneficiaries: string[];
+  tags: string[];
+  brief: string;
+  description_md: string;
+  benefits_md: string;
+  eligibility_md: string;
+  exclusions_md: string;
+  apply: { mode: string; url: string | null; steps_md: string }[];
+  references: { title: string; url: string }[];
+  definitions: { name: string; text: string }[];
+  page_url: string;
+};
+
+export async function getSchemeDetails(
+  slug: string,
+  lang: "en" | "hi",
+  signal?: AbortSignal,
+): Promise<SchemeDetails> {
+  const res = await fetch(`${API}/schemes/${encodeURIComponent(slug)}/details?lang=${lang}`, { signal });
+  if (!res.ok) throw new ApiError(await readError(res), res.status);
+  return res.json();
+}
+
 export type ChatSessionSummary = {
   session_id: string;
   title: string;

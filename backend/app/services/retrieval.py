@@ -45,6 +45,9 @@ def _public(scheme: dict[str, Any], *, score: float, source: str) -> dict[str, A
     item["name_hi"] = item.get("name_hi") or item.get("name")
     item["score"] = round(max(0.0, min(1.0, score / MAX_SCORE)), 2)
     item["source"] = source
+    # myScheme slug: lets the app load the full official record (eligibility, how to apply, ...).
+    # Curated schemes carry an explicit, verified mapping; catalogue schemes ARE their slug.
+    item["slug"] = scheme.get("myscheme_slug") or (scheme.get("slug") if source != "curated" else None)
     return item
 
 

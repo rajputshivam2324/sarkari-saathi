@@ -314,6 +314,14 @@ def next_follow_up(
     return None, None
 
 
+def _kw_in(kw: str, text: str) -> bool:
+    """Keyword match. Short Latin keywords ("sc", "st", "ac") must be whole words, otherwise they match
+    inside ordinary words ("small tea stall" contains "st")."""
+    if kw.isascii() and len(kw) <= 3:
+        return re.search(rf"(?<![a-z0-9]){re.escape(kw)}(?![a-z0-9])", text) is not None
+    return kw in text
+
+
 def score_schemes(signals: dict[str, Any], limit: int = 3) -> list[dict[str, Any]]:
     """Score catalogue schemes against extracted signals; return top N."""
     needs = set(signals.get("needs") or [])
@@ -333,7 +341,7 @@ def score_schemes(signals: dict[str, Any], limit: int = 3) -> list[dict[str, Any
             score += 5.0
 
         for kw in keywords:
-            if kw in utterances:
+            if _kw_in(kw, utterances):
                 score += 2.0
 
         # Occupation boosts
@@ -363,6 +371,13 @@ def score_schemes(signals: dict[str, Any], limit: int = 3) -> list[dict[str, Any
             if scheme["id"] == "pmay-g":
                 score -= 1.5
 
+        # Stand-Up India is only for SC/ST and women entrepreneurs: without any of those words it should
+        # not outrank general small-business schemes such as MUDRA.
+        if scheme["id"] == "standup-india" and gender != "woman" and not any(
+            _kw_in(w, utterances) for w in ("sc", "st", "scheduled caste", "scheduled tribe", "dalit", "tribal", "दलित", "आदिवासी", "अनुसूचित")
+        ):
+            score -= 3.0
+
         if gender == "woman":
             if scheme["id"] in {"ujjwala", "standup-india", "nrlm"}:
                 score += 2.0
@@ -385,7 +400,7 @@ def score_schemes(signals: dict[str, Any], limit: int = 3) -> list[dict[str, Any
     # Fallback: keyword-overlap soft match if nothing scored
     if not scored:
         for scheme in SCHEMES:
-            soft = sum(1 for kw in scheme["eligibility_keywords"] if kw.lower() in utterances)
+            soft = sum(1 for kw in scheme["eligibility_keywords"] if _kw_in(kw.lower(), utterances))
             if soft:
                 item = dict(scheme)
                 item["score"] = float(soft)
