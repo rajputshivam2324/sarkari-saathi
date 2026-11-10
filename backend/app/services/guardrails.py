@@ -17,6 +17,7 @@ from typing import Any
 from app.schemes_data import SCHEMES
 
 MAX_WORDS = 80
+DETAIL_MAX_WORDS = 130   # questions about eligibility, documents, how to apply, ... need room for a complete answer
 ALWAYS_OK_NUMBERS = {112}  # national emergency number: the prompt tells the model to say it
 
 # ----- cleaning -------------------------------------------------------------------------
@@ -113,7 +114,7 @@ _SCRIPTS: dict[str, tuple[int, int]] = {
 
 _PROMISE = re.compile(
     r"\byou(?:'re| are) (?:definitely |surely |already |fully )?(?:eligible|entitled)\b|\byou(?:'re| are) sure to\b|\byou (?:will|'ll) (?:definitely |surely )?(?:get|receive)\b"
-    r"|\bguarantee[ds]?\b|\byou qualify\b|\bI(?:'ve| have) (?:applied|registered|submitted)\b"
+    r"|\b(?:i|we)\s+guarantee\b|\byou(?:'re| are)\s+guaranteed\b|\bguaranteed\s+(?:to\s+)?(?:get|receive|qualify|approval|approved|selected)\b|\byou qualify\b|\bI(?:'ve| have) (?:applied|registered|submitted)\b"
     r"|आप पात्र हैं|आप पात्र है|आपको (?:जरूर|ज़रूर|पक्का) मिलेगा|आपको मिलेगा|गारंटी|मैंने (?:आवेदन|रजिस्टर)",
     re.IGNORECASE,
 )
@@ -213,6 +214,7 @@ def sanitize(
     allowed_text: str,
     allow_question: bool,
     mode: str,
+    max_words: int = MAX_WORDS,
 ) -> Verdict:
     """Clean a model reply and decide whether it is safe to speak.
 
@@ -221,7 +223,7 @@ def sanitize(
     """
     text = clean_for_speech(raw)
     text = _limit_questions(text, allow_question)
-    text = _truncate_words(text)
+    text = _truncate_words(text, max_words)
 
     if not text or len(text) < 4:
         return Verdict(False, "", "empty after cleaning")
@@ -229,6 +231,8 @@ def sanitize(
         return Verdict(False, text, "leaks internal prompt/context")
     if _PROMISE.search(text):
         return Verdict(False, text, "promises eligibility or claims an action")
+    if re.search(r"\bguarantee[ds]?\b|गारंटी", text, re.IGNORECASE) and not re.search(r"guarantee|गारंटी", allowed_text, re.IGNORECASE):
+        return Verdict(False, text, "uses 'guarantee' but the official record does not")
 
     # Numbers/amounts must come from verified facts or from the person's own words.
     allowed_numbers = _numbers(allowed_text) | ALWAYS_OK_NUMBERS

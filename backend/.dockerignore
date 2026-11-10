@@ -1,0 +1,12 @@
+# Never put secrets or local tooling in the image.
+.env
+.env.*
+!.env.example
+.venv/
+**/__pycache__/
+*.pyc
+.git
+.gitignore
+README.md
+Dockerfile
+.dockerignore

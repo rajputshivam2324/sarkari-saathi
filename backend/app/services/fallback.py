@@ -154,6 +154,8 @@ UNCLEAR_HI = "माफ़ कीजिए, मैं ठीक से सुन
 CLOSE_EN = ["The details and official links are on your screen.", "You'll find the details and official links on your screen."]
 CLOSE_HI = ["पूरी जानकारी और आधिकारिक लिंक आपकी स्क्रीन पर हैं।", "आधिकारिक लिंक और जानकारी स्क्रीन पर दिख रही है।"]
 
+UNKNOWN_EN = "I don't have verified details on that scheme, so I won't guess. Its official website or your nearest Common Service Centre can tell you exactly. If you tell me what help you need, I can look for other schemes."
+UNKNOWN_HI = "इस योजना की पक्की जानकारी मेरे पास नहीं है, इसलिए मैं अंदाज़ा नहीं लगाऊँगा। उसकी आधिकारिक वेबसाइट या नज़दीकी कॉमन सर्विस सेंटर आपको सही बता देगा। आप बताइए कि आपको क्या मदद चाहिए, तो मैं दूसरी योजनाएँ देख सकता हूँ।"
 NONE_FOUND_EN = "I couldn't find a clear match for that yet. Your nearest Common Service Centre can help you search. Or tell me a bit more about what you need."
 NONE_FOUND_HI = "इसके लिए मुझे अभी कोई साफ़ योजना नहीं मिली। नज़दीकी कॉमन सर्विस सेंटर आपकी मदद कर सकता है। या आप थोड़ा और बताइए कि क्या चाहिए।"
 APPLY_EN = "I can't file applications for you. You apply on the official page, and the link is on your screen. Your nearest Common Service Centre can also help with the form."
@@ -213,13 +215,13 @@ _SHOW_STEPS_EN = "The full steps and links are on your screen under Details."
 _SHOW_STEPS_HI = "पूरे चरण और लिंक आपकी स्क्रीन पर Details में हैं।"
 
 
-def _bullets(md: str, limit: int = 3) -> list[str]:
-    """First few meaningful lines of a section, as plain sentences."""
+def _bullets(md: str, limit: int = 3, hi: bool = False) -> list[str]:
+    """First few meaningful, speakable lines of a section, as plain sentences."""
     out: list[str] = []
     for raw in SD.md_to_text(md).splitlines():
         line = re.sub(r"^\s*(?:[-*•]|\d{1,2}[.)])\s*", "", raw).strip()
         line = re.sub(r"^\d{1,2}[.)]\s+", "", line)
-        if len(line) >= 12:
+        if len(line) >= 12 and speakable(line, hi):
             line = line.rstrip(" ;,")
             out.append(line if line.endswith((".", "।", "!", "?")) else line + ".")
         if len(out) >= limit:
@@ -228,6 +230,24 @@ def _bullets(md: str, limit: int = 3) -> list[str]:
 
 
 _URL = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+
+
+_JUNK = re.compile(r"&|;\s*[^\s;]{1,6}\s*;|(?:\bएएमपी\b|\bएम्प\b|\bamp\b)|\bnbsp\b|<|>|\[|\]|\|", re.IGNORECASE)
+
+
+def speakable(text: str, hi: bool) -> bool:
+    """Is this snippet of official text fit to be read aloud? Rejects machine-translation debris."""
+    t = (text or "").strip()
+    if len(t) < 12 or _JUNK.search(t):
+        return False
+    letters = [c for c in t if c.isalpha()]
+    if not letters:
+        return False
+    if hi:   # a Hindi sentence should be mostly Devanagari; heavy Latin/number clutter means a broken translation
+        dev = sum("\u0900" <= c <= "\u097f" for c in letters)
+        if dev / len(letters) < 0.55:
+            return False
+    return t.count(";") <= 2
 
 
 def _clip_words(text: str, n: int) -> str:
@@ -253,15 +273,51 @@ def _apply_phrase(rec: dict, hi: bool) -> str:
     return ("आप " + joiner.join(ways) + " आवेदन कर सकते हैं।") if hi else ("You can apply " + joiner.join(ways) + ".")
 
 
+_HEADING = re.compile(r"^\s*#{1,6}\s*")
+_ITEM_START = re.compile(r"^\s*(?:(?:step|चरण)\s*\d+\s*[:.\-]?|\d{1,2}[.)]|[-*•])\s*", re.IGNORECASE)
+_GLUED_NUM = re.compile(r"(?<=[.!?।'\"”’])\s*(?=\d{1,2}[.)]\s)")
+
+
 def _steps(rec: dict, n: int = 4) -> list[str]:
-    """Spoken-length application steps (online route first)."""
+    """Spoken-length application steps from whatever layout the official text uses.
+
+    Handles "Step 1:" lines, numbered or bulleted lists, "### Process 1:" headings, numbered items glued
+    after a full stop, and plain sentences. Online route first.
+    """
     apply = sorted(rec.get("apply") or [], key=lambda a: 0 if (a.get("mode") or "").lower() == "online" else 1)
     for a in apply:
-        lines = [_STEP.sub("", l).strip() for l in SD.md_to_text(a.get("steps_md")).splitlines() if _STEP.match(l)]
-        lines = [_clip_words(l, 22) for l in lines if len(l) > 8]
-        if lines:
-            return lines[:n]
+        text = SD.md_to_text(a.get("steps_md"))
+        text = _GLUED_NUM.sub("\n", text)
+        steps: list[str] = []
+        for raw in text.splitlines():
+            line = _HEADING.sub("", raw).strip()
+            if not line:
+                continue
+            is_item = bool(_ITEM_START.match(line))
+            line = _ITEM_START.sub("", line).strip(" *_")
+            # headings such as "Process 1:" / "Registration Process:" are labels, not steps
+            if not line or re.fullmatch(r"(?:process|step|चरण|प्रक्रिया)[^.!?।]{0,28}[:：]?", line, re.IGNORECASE):
+                continue
+            if is_item or len(line.split()) >= 5:
+                steps.append(_clip_words(line, 24))
+        steps = [s for s in steps if len(s) > 8]
+        if steps:
+            return steps[:n]
     return []
+
+
+def _supplement_answer(topic: str | None, sup: dict[str, Any]) -> str | None:
+    """English answer from the verified supplement (helpline, documents, fee). None when it has nothing for the topic."""
+    def line(v: Any) -> str:
+        return "; ".join(v) if isinstance(v, list) else str(v)
+
+    if topic == "help" and (sup.get("helpline") or sup.get("grievance")):
+        return " ".join(line(sup[k]).rstrip(".") + "." for k in ("helpline", "grievance") if sup.get(k))
+    if topic == "docs" and sup.get("documents"):
+        return "The official pages list these documents: " + line(sup["documents"]).rstrip(".") + ". " + _SHOW_STEPS_EN
+    if topic == "apply" and sup.get("fee"):
+        return line(sup["fee"])
+    return None
 
 
 def _details_answer(topic: str | None, rec: dict | None, hi: bool) -> str | None:
@@ -270,22 +326,26 @@ def _details_answer(topic: str | None, rec: dict | None, hi: bool) -> str | None
         return None
     name = rec.get("short_title") or rec.get("name") or ""
     if topic == "eligibility" and rec.get("eligibility_md"):
-        b = _bullets(rec["eligibility_md"], 3)
+        b = _bullets(rec["eligibility_md"], 3, hi)
         if b:
             tail = (" कुछ लोग इस योजना से बाहर हैं, इसलिए आधिकारिक पेज पर सूची ज़रूर देखिए।" if hi else " Some people are excluded, so please check the list on the official page.") if rec.get("exclusions_md") else ""
             lead = f"{name} के लिए: " if hi else f"For {name}: "
             return (lead + " ".join(_clip_words(x, 34) for x in b) + tail).replace("..", ".").replace(".।", "।")
     if topic == "benefits" and rec.get("benefits_md"):
-        b = _bullets(rec["benefits_md"], 2)
+        b = _bullets(rec["benefits_md"], 2, hi)
         if b:
             return (f"{name} में आपको मिलता है: " if hi else f"With {name} you get: ") + " ".join(_clip_words(x, 36) for x in b)
     if topic == "apply":
+        if hi:
+            # The Hindi record is machine-translated into long run-on text (26 of 56 sampled records), which
+            # sounds wrong when spoken. Describe the routes and send the person to the Details on screen.
+            how = _apply_phrase(rec, True)
+            if how:
+                return f"{name} के लिए {how} पूरे चरण, लिंक और ज़रूरी कागज़ आपकी स्क्रीन पर Details में हैं।"
+            return None
         steps = _steps(rec)
         if steps:
-            lead = "आवेदन ऐसे करें। " if hi else "Here is how to apply. "
-            body = " ".join(f"{i}. {x}" if False else x for i, x in enumerate(steps, 1))
-            tail = (" " + _SHOW_STEPS_HI) if hi else (" " + _SHOW_STEPS_EN)
-            return lead + body + tail
+            return "Here is how to apply. " + " ".join(steps) + " " + _SHOW_STEPS_EN
     if topic == "docs":
         found: list[str] = []
         probes = [  # (pattern, English label, Hindi label): only what the official steps actually mention
@@ -362,8 +422,8 @@ def _present(profile, candidates, lang, turn, question_key, records=None) -> str
     rec = records.get(first.get("slug") or "")
     if rec:
         short = rec.get("short_title") or name
-        benefit = " ".join(_clip_words(x, 30) for x in _bullets(rec.get("benefits_md") or "", 1))
-        who = " ".join(_clip_words(x, 26) for x in _bullets(rec.get("eligibility_md") or "", 1))
+        benefit = " ".join(_clip_words(x, 30) for x in _bullets(rec.get("benefits_md") or "", 1, hi))
+        who = " ".join(_clip_words(x, 26) for x in _bullets(rec.get("eligibility_md") or "", 1, hi))
         how = _apply_phrase(rec, hi)
         if hi:
             parts.append(f"{short} से आपको मदद मिल सकती है।")
@@ -439,6 +499,9 @@ def compose(
             return L.follow_need(language)
         return _pick(ASK_HI if hi else ASK_EN, ask_count)
 
+    if mode == "unknown":
+        return (UNKNOWN_HI if hi else UNKNOWN_EN) if rich else L.NO_MATCH[language]
+
     if mode == "answer":
         if not rich:
             return L.MATCH_SUFFIX[language]
@@ -451,6 +514,12 @@ def compose(
         if not rich:
             return L.MATCH_SUFFIX[language]
         first_rec = (records or {}).get(((candidates or [{}])[0]).get("slug") or "")
+        if en:
+            from app.services.supplement import get_supplement
+
+            sup_answer = _supplement_answer(topic, get_supplement(((candidates or [{}])[0]).get("slug")))
+            if sup_answer:
+                return sup_answer
         concrete = _details_answer(topic, first_rec, hi)
         if concrete:
             return concrete

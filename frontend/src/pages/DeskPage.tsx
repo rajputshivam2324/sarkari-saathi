@@ -334,13 +334,18 @@ export function DeskPage() {
         // The reply text has arrived, so stop showing "thinking". If audio follows, "speaking" takes over.
         setState((s) => (s === "processing" ? (liveRef.current ? "listening" : "idle") : s));
       } else if (typeof data.text === "string") {
+        const partialText = data.text as string;
         setMsgs((prev) => {
+          const last = prev[prev.length - 1];
+          // The full reply has normally arrived already (it has an id). A partial that repeats it
+          // must not become a second bubble.
+          if (last && last.role === "assistant" && last.text.trim() === partialText.trim()) return prev;
           const next = [...prev];
-          if (next.length && next[next.length - 1].role === "assistant" && !next[next.length - 1].id) {
-            next[next.length - 1] = { ...next[next.length - 1], text: data.text as string };
+          if (last && last.role === "assistant" && !last.id) {
+            next[next.length - 1] = { ...last, text: partialText };
             return next;
           }
-          return [...next, { role: "assistant", text: data.text as string }];
+          return [...next, { role: "assistant", text: partialText }];
         });
       }
     } else if (type === "transcript_partial") {

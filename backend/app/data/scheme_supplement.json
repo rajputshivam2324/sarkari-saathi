@@ -1,0 +1,97 @@
+{
+  "_readme": "Verified extra facts the myScheme record does not carry (documents, helpline, fee, ...). Keyed by myScheme slug. Add a value only if an official page states it, and record that page in `sources`. Anything missing here is told to the person as 'not available', never guessed. See app/services/supplement.py for the fields.",
+
+  "pm-kisan": {
+    "documents": [
+      "Aadhaar number (mandatory under the scheme guidelines; if the person has no Aadhaar yet, the Aadhaar enrolment number is accepted so the first instalment can be paid)",
+      "Bank account number and IFSC code",
+      "Land ownership details (landholding records)"
+    ],
+    "documents_note": "A mobile number is not mandatory but is advised so that messages about instalments reach the farmer.",
+    "helpline": "PM-KISAN helpline 155261 or 011-24300606, toll-free 1800-115-526",
+    "grievance": "The PM-KISAN website has a Grievance page for registering complaints.",
+    "sources": [
+      "https://pmkisan.gov.in/Documents/FAQPMKISAN.pdf (Q15 and Q23: documents, Aadhaar mandatory)",
+      "https://pmkisan.gov.in/Grievance.aspx (grievance page exists)",
+      "Helpline numbers: reported identically by Economic Times, CNBC-TV18, Navbharat Times and News18; NOT found on an official page that could be read. Re-check on the PM-KISAN portal."
+    ],
+    "verified": "2026-11-10"
+  },
+
+  "ab-pmjay": {
+    "helpline": "14555, a 24 hours a day toll-free helpline",
+    "grievance": "Complaints can be made on the Centralised Grievance Redressal Management System (CGRMS) or by calling 14555.",
+    "sources": [
+      "https://sansad.in/getFile/loksabhaquestions/annex/187/AU4818_CFtokM.pdf (Lok Sabha answer, Ministry of Health and Family Welfare)",
+      "https://sansad.in/getFile/lsapps/loksabhaquestions/annex/188/AU1046_6L4LAB.pdf"
+    ],
+    "verified": "2026-11-10"
+  },
+
+  "pmfby": {
+    "helpline": "14447, a toll-free crop insurance helpline",
+    "grievance": "Farmers can register crop insurance complaints on the Krishi Rakshak portal or by calling the 14447 helpline.",
+    "sources": [
+      "https://sansad.in/getFile/annex/270/AU808_IpQVON.pdf (Rajya Sabha answer, Ministry of Agriculture and Farmers Welfare)",
+      "https://www.pib.gov.in/PressReleseDetailm.aspx?PRID=1982800&lang=2&reg=3 (PIB: Krishi Rakshak Portal and Helpline)"
+    ],
+    "verified": "2026-11-10"
+  },
+
+  "pmuy": {
+    "documents": [
+      "Filled Know Your Customer (KYC) application form",
+      "Aadhaar copy of the woman applicant as proof of identity",
+      "Proof of address, only if the address in Aadhaar is different from where she lives now (migrant applicants give a self declaration)",
+      "Ration card issued by the state where the application is made, or another state government document showing the family members, with Aadhaar copies of the adult family members named in it",
+      "Bank account details (passbook copy or cancelled cheque)",
+      "Deprivation declaration in the prescribed format"
+    ],
+    "helpline": "Ujjwala helpline 14438, toll-free helpline 14428. 1906 is the LPG emergency helpline for gas leaks.",
+    "sources": [
+      "https://pmuy.gov.in/index.aspx (Documents required, Eligibility Criteria, helpline numbers)",
+      "https://pmuy.gov.in/ujjwala2.html"
+    ],
+    "verified": "2026-11-10"
+  },
+
+  "apy": {
+    "documents": [
+      "A savings bank account (contributions are auto-debited from it)",
+      "Aadhaar (a mandatory field in the APY registration form; online enrolment uses Aadhaar eKYC)",
+      "Nominee and spouse details are mandatory"
+    ],
+    "documents_note": "A mobile number is optional but recommended so that updates on the APY account reach the subscriber.",
+    "helpline": "PFRDA Atal Pension Yojana help desk, toll-free 1800 1100 69",
+    "notes": "Entry age is 18 to 40 years. Since 1 October 2022 anyone who is or has been an income-tax payer cannot join APY. A person can join at a bank branch or post office, online with Aadhaar eKYC, or on the APY mobile app.",
+    "sources": [
+      "https://www.pfrda.org.in/documents/33652/307349/APY%20Subscriber%20Information%20Brochure%20English",
+      "https://financialservices.gov.in/atal-pension-yojana",
+      "https://static.pbcdn.in/cdn/pdf/apy_subscriber_registration_form.pdf (registration form fields)"
+    ],
+    "verified": "2026-11-10"
+  },
+
+  "pm-svanidhi": {
+    "documents": [
+      "Certificate of Vending, ID card or Letter of Recommendation (LoR) issued by the Urban Local Body or Town Vending Committee; in census towns and peri-urban areas, an LoR approved by the Block Development Officer",
+      "Aadhaar card (vendors from Assam and Meghalaya who have no Aadhaar can use a Voter ID card)",
+      "Savings bank account passbook or bank statement with the vendor's account details",
+      "A valid and unique UPI ID linked to the vendor's bank account"
+    ],
+    "fee": "There is no application fee for a loan under the scheme.",
+    "notes": "Eligibility depends on the place where the person is vending now, not the address on the Aadhaar card. The loan is collateral-free.",
+    "sources": [
+      "https://www.mohua.gov.in/static/uploads/2026/07/12faf90fb59f6a4252ee02dd5f600bb9.pdf (official FAQs on PM SVANidhi, Q3, Q7, Q8, Q10)"
+    ],
+    "verified": "2026-11-10"
+  },
+
+  "pmjdy": {
+    "helpline": "National toll-free numbers 1800 11 0001 and 1800 180 1111",
+    "sources": [
+      "https://pmjdy.gov.in/ (National Toll Free numbers listed on the PMJDY website)"
+    ],
+    "verified": "2026-11-10"
+  }
+}

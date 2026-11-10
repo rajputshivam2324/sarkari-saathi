@@ -129,18 +129,97 @@ _ELIGIBLE = re.compile(r"\b(eligible|eligibility|qualify|qualified|who can|can i
 _BENEFIT = re.compile(r"\b(benefit|benefits|how much|amount|money|get|receive|gives?|installment|instalment|fayda|labh|kitna|kitne|kitni|paisa|paise|milega|milegi)\b|फायदा|लाभ|कितना|कितने|कितनी|रुपये|पैसे|रकम|क्या मिलेगा|क्या मिलता", re.IGNORECASE)
 
 
+_I = re.IGNORECASE
+# Most specific first. Each one is a kind of question people really ask about a scheme (English, romanised
+# Hindi and Devanagari). The topic decides which part of the official record the model reads in full.
+_HELP = re.compile(
+    r"\b(helpline|help\s?line|toll[\s-]?free|customer care|contact|complain\w*|grievance|appeal|unfair\w*|officer|phone number|number to call|"
+    r"who (?:do|should|can) i (?:call|contact|ask)|shikayat|sampark)\b|शिकायत|हेल्पलाइन|संपर्क|अपील|अधिकारी|टोल फ्री|कंप्लेंट|फोन नंबर",
+    _I,
+)
+_STATUS = re.compile(
+    r"\b(status|approved|approval|rejected|rejection|processing time|(?:haven'?t|have not|not|didn'?t|did not) (?:yet )?(?:received|got|come|credited)|"
+    r"when will i (?:receive|get)|when (?:will|does) (?:the )?(?:money|payment|amount|installment|instalment)|payment (?:status|date|delay|kab)|"
+    r"correct (?:my|the)|edit (?:my|the)|update (?:my|the) (?:application|details)|mistake in (?:my )?(?:application|form)|track|paisa kab)\b|"
+    r"स्थिति|स्टेटस|मंज़ूर|मंजूर|रद्द|खारिज|भुगतान|पैसा (?:कब|नहीं)|कब (?:आएगा|आयेगा|मिलेगा|तक आएगा)|कितने दिन|ग़लती|गलती|सुधार|ट्रैक",
+    _I,
+)
+_COMPARE = re.compile(
+    r"\b(difference between|differences? (?:of|in)|compare|comparison|versus|vs\.?|better than|which (?:one )?is better|similar schemes?|farq|behtar)\b|फ़र्क|फर्क|अंतर|तुलना|बेहतर",
+    _I,
+)
+_DOCS_EXTRA = re.compile(r"\b(domicile|passbook|ration card|income certificate|caste certificate|birth certificate|photograph|photo id|id proof|address proof|without (?:a |an )?(?:aadhaar|aadhar|ration card))\b|निवास प्रमाण|राशन कार्ड|पासबुक|पहचान पत्र", _I)
+_ELIG_SPECIFIC = re.compile(
+    r"\b(age limit|minimum age|maximum age|upper age|lower age|how old|income limit|income ceiling|annual income|income criteria|"
+    r"students? (?:can )?apply|can (?:a |an )?(?:women|woman|girls?|men|students?|farmers?|widows?|seniors?|senior citizens?|disabled|divyang|tenant farmers?|unmarried|married)|"
+    r"sc/?st|obc|ews|scheduled (?:caste|tribe)|caste|category|categories|rural and urban|rural or urban|urban|rural|"
+    r"already (?:receiving|getting|have|taking|benefit)|another scheme|other scheme benefits?|two (?:government )?schemes|both schemes|simultaneously|same time|"
+    r"who can benefit|who is it for|who are eligible|who is eligible|who qualifies|am i eligible|do i qualify|eligib\w+ (?:criteria|to apply|for))\b|"
+    r"उम्र|आयु|आय सीमा|आमदनी|महिला|छात्र|ग्रामीण|शहरी|एक साथ|दो योजनाओं|पहले से|किसे|कौन ले सकता|कौन-कौन",
+    _I,
+)
+_ACTIVE = re.compile(
+    r"\b(still (?:active|running|open|valid|accepting|on)|currently (?:active|running|open|valid|accepting)|is (?:it|this|the scheme) (?:active|open|closed|running|valid)|"
+    r"accepting applications?|applications? (?:open|closed)|last date|closing date|deadline|due date|till when|until when|open now|"
+    r"in 202\d|this year|band ho|chalu)\b|अंतिम तारीख|आखिरी तारीख|अंतिम तिथि|चालू है|बंद हो|कब तक|इस साल",
+    _I,
+)
+_BASICS = re.compile(
+    r"\b(objective|purpose|aim of|main aim|why was|launched|launch date|when was (?:it|this|the)|when did (?:it|this|the)|since when|"
+    r"which government|who (?:started|launched|runs|started it)|run by|ministry|department|central (?:or|government)|state (?:or|government)|"
+    r"central scheme|state scheme|what is (?:this|the) (?:government )?scheme|what does (?:this|the) scheme)\b|"
+    r"उद्देश्य|मकसद|किसने शुरू|कब शुरू|कब लॉन्च|मंत्रालय|केंद्र (?:सरकार|या)|राज्य सरकार की",
+    _I,
+)
+_BENEFIT_EXTRA = re.compile(
+    r"\b(monthly|yearly|annual(?:ly)?|one[\s-]?time|lump ?sum|directly (?:in|to|into)|dbt|direct benefit|additional benefits?|extra benefits?|"
+    r"how long will i (?:receive|get)|for how long|how many years|duration)\b|मासिक|वार्षिक|साल में|सीधे|खाते में|कितने साल|अतिरिक्त",
+    _I,
+)
+_OTHER_SCHEMES = re.compile(
+    r"\b(which (?:government |other |more |new |central |state )?schemes?|what (?:other |more |new |government )?schemes?|other schemes?|more schemes?|"
+    r"any (?:other |new |more )?schemes?|schemes? (?:for|available|that|in)|new(?:ly)? launched|new schemes?|latest schemes?|schemes? i can)\b|"
+    r"कौन ?सी (?:\w+ )?योजना|कोई और योजना|और (?:कौन ?सी )?योजना|नई योजना|दूसरी योजना|कौन-कौन सी योजना",
+    _I,
+)
+
+TOPICS = ("help", "status", "compare", "docs", "eligibility", "active", "basics", "apply", "benefits")
+
+
 def followup_topic(text: str) -> str | None:
-    """What a follow-up question is about: 'docs' | 'apply' | 'eligibility' | 'benefits' | None."""
+    """What a question about a scheme is about.
+
+    'help' (helpline, complaints, appeal) | 'status' (application status, approval, payment) |
+    'compare' | 'docs' | 'eligibility' | 'active' (open now, last date) | 'basics' (objective, launch,
+    who runs it) | 'apply' | 'benefits' | None.
+    """
     t = text or ""
-    if _DOCS.search(t):
+    if _HELP.search(t):
+        return "help"
+    if _STATUS.search(t):
+        return "status"
+    if _COMPARE.search(t):
+        return "compare"
+    if _DOCS.search(t) or _DOCS_EXTRA.search(t):
         return "docs"
+    if _ELIG_SPECIFIC.search(t):
+        return "eligibility"
+    if _ACTIVE.search(t):
+        return "active"
+    if _BASICS.search(t):
+        return "basics"
     if _APPLY.search(t):
         return "apply"
     if _ELIGIBLE.search(t):
         return "eligibility"
-    if _BENEFIT.search(t):
+    if _BENEFIT_EXTRA.search(t) or _BENEFIT.search(t):
         return "benefits"
     return None
+
+
+def wants_other_schemes(text: str) -> bool:
+    """True when the person is asking WHICH schemes exist for them, not about the scheme already on screen."""
+    return bool(_OTHER_SCHEMES.search(text or ""))
 
 
 _ACK = re.compile(
@@ -234,12 +313,25 @@ _SCRIPT_LANG: list[tuple[int, int, str]] = [
 ]
 _INDIC_CODES = {"hi-IN", "mr-IN", "bn-IN", "pa-IN", "gu-IN", "ta-IN", "te-IN", "kn-IN", "ml-IN"}
 # Romanised Hindi ("Hinglish") markers: typing these means "answer in Hindi", not English.
-_HINGLISH = set(
-    "mujhe mera meri mere main mai hum hamara aap aapka aapki kya kaise kaun kab kahan kyun kitna kitni kitne hai hain tha thi "
-    "nahi nahin nhi chahiye chahie karna karni karo kare kijiye batao bataiye bataye batana madad yojana paisa paise ghar "
-    "kisan khet kheti naukri padhai ilaaj dawai ko ke ki ka se mein me par pe aur ya bhi toh to abhi lekin sab kuch koi "
-    "accha theek thik haan han ji bilkul samajh samjha dhanyavad shukriya".split()
+# Strong: unmistakably romanised Hindi, so one is enough. Weak: short words that are also English
+# ("me", "to", "main") or very short tokens, so they only count together with something else.
+_HINGLISH_STRONG = set(
+    "mujhe mera meri mere hamara aap aapka aapki kya kaise kaun kab kahan kyun kitna kitni kitne hain nahi nahin nhi "
+    "chahiye chahie karna karni karo kare kijiye batao bataiye bataye batana madad paisa paise abhi lekin kuch koi "
+    "accha theek thik haan bilkul samajh samjha dhanyavad shukriya milega milegi milta hoga hogi kisko iske uske "
+    "baare baarein liye wala wali wale apna apni bahut bohot zyada thoda sirf yahan wahan ghar khet kheti naukri padhai "
+    "ilaaj dawai bimari jankari jaankari sarkari".split()
 )
+_HINGLISH_WEAK = set("hai ho ka ke ki ko se mein me par pe aur ya bhi toh tha thi main mai hum sab".split())
+# Words that belong to scheme names or are loanwords inside English sentences: never evidence.
+_NAME_WORDS = {"yojana", "yojna", "kisan", "mantri", "pradhan", "samman", "nidhi", "bharat", "shram", "vishwakarma", "ujjwala", "mudra", "awas", "gramin", "pension", "bima", "fasal"}
+
+
+def _looks_hinglish(words: list[str]) -> bool:
+    ws = [w for w in words if w not in _NAME_WORDS]
+    strong = sum(w in _HINGLISH_STRONG for w in ws)
+    weak = sum(w in _HINGLISH_WEAK for w in ws)
+    return strong >= 1 or weak >= 2
 
 
 def infer_reply_language(text: str, selected: str) -> str:
@@ -265,8 +357,35 @@ def infer_reply_language(text: str, selected: str) -> str:
             return "mr-IN"          # Devanagari is shared; keep Marathi if that is what they chose
         return top
     words = re.findall(r"[a-z]+", (text or "").lower())
-    if any(w in _HINGLISH for w in words):
+    if _looks_hinglish(words):
         return selected if selected in _INDIC_CODES else "hi-IN"
     if len(words) >= 3:
         return "en-IN"
     return selected
+
+
+_ASKS_ABOUT_NAMED = re.compile(
+    r"\b(?:[a-z][a-z'-]+\s+){0,4}(?:yojana|yojna|scheme|abhiyan|mission|programme|program)\b|(?:योजना|स्कीम|अभियान|मिशन)",
+    re.IGNORECASE,
+)
+
+
+def mentions_a_scheme_name(text: str) -> bool:
+    """True if the person seems to be asking about one particular scheme by name ("... Yojana", "... योजना").
+
+    Used so that an unknown scheme name is reported as unknown, instead of being turned into a
+    generic need-based search that returns unrelated schemes.
+    """
+    t = text or ""
+    if not _ASKS_ABOUT_NAMED.search(t):
+        return False
+    # "I need a scheme for farmers" is a need, not a name: require a capitalised word or an Indic word before it
+    m = re.search(r"([A-Z][A-Za-z\-']{2,}(?:\s+[A-Z][A-Za-z\-']{2,}){0,3})\s+(?:Yojana|Yojna|Scheme|Abhiyan|Mission)", t)
+    if m and m.group(1).split()[0].lower() not in {"the", "a", "an", "this", "that", "any", "some", "tell", "what", "which", "how", "please", "about", "i", "my", "i'm"}:
+        return True
+    # Devanagari: the word right before योजना must be a name, not a generic "some/any/which/this/that/a"
+    m2 = re.search(r"([\u0900-\u097F]+)\s*(?:योजना|स्कीम|अभियान|मिशन)", t)
+    if not m2:
+        return False
+    generic = {"कोई", "कौन", "कौनसी", "कौन-सी", "कौन सी", "यह", "ये", "वह", "वो", "इस", "उस", "एक", "कुछ", "सभी", "सारी", "हर", "के", "की", "का", "में", "लिए", "बारे", "सरकारी", "भारत", "सरकार", "सब", "कोई-सी", "मदद", "अच्छी", "नई", "नयी"}
+    return m2.group(1) not in generic and len(m2.group(1)) >= 3

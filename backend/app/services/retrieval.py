@@ -37,7 +37,7 @@ CATALOGUE_ONLY_NEEDS = {"disability", "women"}  # no curated schemes for these
 _PUBLIC_FIELDS = ("id", "name", "name_hi", "category", "description", "description_hi", "official_url")
 
 
-def _public(scheme: dict[str, Any], *, score: float, source: str) -> dict[str, Any]:
+def public_scheme(scheme: dict[str, Any], *, score: float, source: str) -> dict[str, Any]:
     item = {k: scheme.get(k) for k in _PUBLIC_FIELDS}
     item["category"] = item.get("category") or ""
     item["description"] = item.get("description") or ""
@@ -87,7 +87,7 @@ async def retrieve(
         # Always keep the best match; keep others only if they are a real match, not filler.
         if i > 0 and (raw / MAX_SCORE < MIN_CONFIDENCE or raw < top * RELATIVE_FLOOR):
             continue
-        results.append(_public(s, score=raw, source="curated"))
+        results.append(public_scheme(s, score=raw, source="curated"))
         seen.add(sid)
 
     # Catalogue extras: only for needs the curated list does not cover, or when it found nothing.
@@ -107,7 +107,7 @@ async def retrieve(
                 # score = 2-3 points per matched query word: require two distinct words.
                 if not hid or hid in seen or float(h.get("score") or 0) < 4:
                     continue
-                results.append(_public(h, score=float(h.get("score") or 0), source="myscheme.gov.in"))
+                results.append(public_scheme(h, score=float(h.get("score") or 0), source="myscheme.gov.in"))
                 seen.add(hid)
                 added += 1
                 if added >= 2 or len(results) >= limit:

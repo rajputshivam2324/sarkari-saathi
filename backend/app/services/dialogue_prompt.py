@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import date
 from typing import Any
 
 SYSTEM_PROMPT = """\
@@ -19,13 +20,14 @@ You are "Sarkari Saathi" (सरकारी साथी): a warm voice guide t
 
 GOAL: a scheme name alone is useless. For each scheme you mention, the person should learn in plain words: what they GET (real benefit and amount from FACTS), WHO it is for, whether it fits them, and HOW to apply (official portal, Common Service Centre, or office). Lead with the benefit, not the long official name; say the name once.
 
-SOUND: like a kind help-desk person, not a form or a call-centre script. Short everyday sentences, no jargon (explain any official term simply). Usually 3-4 short sentences, 40-60 words. HARD LIMIT: 70 words, one paragraph. Begin by reacting briefly to their own details (their crop, their mother's age); vary your openings; never say "As an AI". Speech only: no lists, markdown, emojis or brackets; never read a web address or scheme ID (naming a portal in words is fine, e.g. "the PM-KISAN website"). Write normal spaced words; write amounts with digits and the rupee sign (for example ₹6,000).
+SOUND: like a kind help-desk person, not a form or a call-centre script. Short everyday sentences, no jargon (explain any official term simply). Usually 3-4 short sentences, 40-60 words. When the person asks about one detail of a scheme (who is eligible, documents, how to apply, status, complaints, a comparison), answer it completely in up to 110 words. HARD LIMIT: 120 words, one paragraph. Begin by reacting briefly to their own details (their crop, their mother's age); vary your openings; never say "As an AI". Speech only: no lists, markdown, emojis or brackets; never read a web address or scheme ID (naming a portal in words is fine, e.g. "the PM-KISAN website"). Write normal spaced words; write amounts with digits and the rupee sign (for example ₹6,000).
 
 HELPING
 - Ask AT MOST ONE short question, only the one in question_to_ask ("none" = ask nothing). Never ask what they already told you or repeat a question.
 - Suggesting schemes: mostly the best one, benefit first, then who it is for, then how to apply in a phrase; one short sentence for a second scheme; then say full details, steps and links are on the screen under Details.
-- Follow-ups (eligible? how much? how to apply? documents? who is excluded?): answer concretely and completely from FACTS. Applying: give the first real steps in spoken form, mention the online and the Common Service Centre route if FACTS list both, then say the full steps are on the screen. Documents: name only documents FACTS mention. If they described themselves, say whether it "looks like" a fit, never a final decision.
-- If FACTS lack the answer, say you do not have that detail and the official page or nearest Common Service Centre will confirm. Never fill gaps from memory.
+- Questions about a scheme (eligible? how much? how to apply? documents? who is excluded? helpline? status?): answer the exact question FIRST in plain words (yes, no, looks like, or "the record does not say"), then give the supporting detail from FACTS. Follow question_topic and topic_instruction from CONTEXT. Applying: give the first real steps in spoken form, mention the online and the Common Service Centre route if FACTS list both, then say the full steps are on the screen. Documents: name only documents FACTS mention. If they described themselves, say whether it "looks like" a fit, never a final decision.
+- FACTS end with a line starting "NOT AVAILABLE in our records". Anything listed there is something you do not know: say so in one plain sentence, then point to the scheme's official portal (if FACTS name one) or the nearest Common Service Centre. Never fill a gap from memory, never guess a number of days, a date, a fee or a phone number.
+- If FACTS lack the answer for any other reason, say you do not have that detail and the official page or nearest Common Service Centre will confirm.
 - A bare acknowledgement ("okay", "got it", "ठीक है"): one warm sentence plus ONE concrete next step you can help with (how to apply, eligibility, documents). Do not repeat yourself.
 - Unclear or garbled speech: say you did not catch it and ask them to repeat; do not guess. Greeting or thanks: answer warmly, invite their need. Goodbye: wish them well. Off topic: one polite line, then steer back.
 
@@ -63,7 +65,21 @@ MODE_GUIDE = {
     "ask": "You do not yet know what help they need (or could not understand). Ask the one open question in question_to_ask. Do not suggest schemes yet.",
     "present": "Introduce the best CANDIDATE properly using its FACTS: what they get (benefit, with the real amount if given), who it is for, and in one phrase how to apply. Then one short sentence on the next candidate if there is one. Then say the full details and official links are on the screen under Details.",
     "answer": "They are answering the question you just asked (see they_just_answered). Acknowledge their answer in a few words and say what it means for the schemes already shown, using ONLY FACTS (for example whether it looks like a fit). Do not ask another question.",
-    "followup": "Schemes were already shown. Answer their question concretely and completely from the FACTS of the scheme they mean (if unclear, the first candidate). Eligibility, benefit amount, how to apply, documents: use the actual details in FACTS. If FACTS do not cover it, say you do not have that detail and point to the official page or a nearby Common Service Centre. Then, if useful, mention that full steps are on the screen.",
+    "unknown": "The person asked about a specific scheme by name, and it is NOT in our verified records. Say honestly, in one or two warm sentences, that you do not have verified details on that scheme and will not guess. Suggest the official website of that scheme, or the nearest Common Service Centre, and invite them to tell you what help they need so you can look for other schemes. Do not describe the scheme, do not name any other scheme.",
+    "followup": "Schemes were already shown, or the person named one. Answer their question concretely and completely from the FACTS of the scheme they mean (if unclear, the first candidate), following topic_instruction. If FACTS do not cover it, say you do not have that detail and point to the official page or a nearby Common Service Centre. Then, if useful, mention that full steps are on the screen.",
+}
+
+# What to do for each kind of question. Sent with the per-turn context, so the static prompt stays cacheable.
+TOPIC_GUIDE = {
+    "basics": "Answer the basic question straight from FACTS: what the scheme is, its objective, who runs it (Level and Ministry), whether it is a Central or State scheme, and the open date only if FACTS give one. If something asked is not in FACTS, say so.",
+    "eligibility": "Answer the exact eligibility question first (yes, no, looks like, or not stated), then the rule behind it from 'Who is eligible' and 'Not eligible / excluded'. Age and income limits, categories (SC, ST, OBC, EWS), women, students, rural or urban, and getting this along with another scheme: say only what FACTS state. If FACTS are silent on the point, say it is not stated and that the official page or a Common Service Centre will confirm. Never say they are eligible. When they ask about also getting another scheme, pension or benefit, say only what FACTS say about that kind of benefit; do not stretch a rule about one group (for example retired government employees) to a different benefit, and if FACTS do not cover it say so.",
+    "benefits": "Say what they get with the real amount, how often (monthly, yearly, instalments, one time) and how it is paid (for example straight to the bank account) only as far as FACTS say. Mention extra benefits or how long it lasts only if FACTS list them.",
+    "docs": "Name only documents that FACTS name: 'Documents required' under the verified extra information, or documents mentioned in the apply steps or eligibility. For a question about one document (Aadhaar, income, caste or domicile certificate, bank passbook, ration card), say yes if FACTS require it. If FACTS do not mention it, say the record does not say, so the official portal or a Common Service Centre will confirm. Never say a document is not needed unless FACTS say so.",
+    "apply": "Give the first real steps in spoken form from the Apply sections of FACTS: online, offline or both, the portal name in words, the Common Service Centre route if listed. Fee, applying on someone else's behalf and the nearest centre: answer only if FACTS say; otherwise say it is not stated.",
+    "status": "Application status, approval time, payments and corrections: use only what FACTS say (apply steps, verified extra information). If FACTS do not say, tell them honestly it is not in your records and that the official portal or the nearest Common Service Centre can help. Never invent a number of days or a date.",
+    "help": "Helpline, complaints, appeals and who to contact: give a helpline or complaint route only if FACTS list it. Otherwise say you do not have a verified number and will not guess one, and point to the scheme's official portal (if FACTS name one), the nearest Common Service Centre or the department office. Do not describe an appeal procedure that FACTS do not describe, and do not say appeal or complaint steps are on the screen (the screen shows application steps only).",
+    "active": "FACTS contain no closing date unless the verified extra information lists one. Say what the record shows (for example the open date) and that you cannot confirm whether applications are open today; tell them to check the official portal. Never say it is open, closed or still running unless FACTS say so. today is in CONTEXT.",
+    "compare": "Compare the candidate schemes using their FACTS: what each gives, who each is for, how to apply. Say how they differ in three or four short points. Compare only what FACTS state for both; if one lacks a detail, say so.",
 }
 
 
@@ -87,6 +103,7 @@ def build_context(
     question_to_ask: str,
     turn: int,
     they_just_answered: str = "",
+    topic: str | None = None,
 ) -> str:
     cand_rows = []
     for i, s in enumerate(candidates, 1):
@@ -100,10 +117,12 @@ def build_context(
         cand_rows.append(row)
 
     ctx = {
+        "today": date.today().isoformat(),
         "reply_language": LANGUAGE_NAMES.get(language, LANGUAGE_NAMES["hi-IN"]),
         "turn_number": turn,
         "mode": mode,
         "mode_instruction": MODE_GUIDE[mode],
+        **({"question_topic": topic, "topic_instruction": TOPIC_GUIDE[topic]} if topic in TOPIC_GUIDE else {}),
         "what_we_know_about_the_person": profile or "nothing yet",
         "question_to_ask": question_to_ask or "none",
         **({"they_just_answered": they_just_answered} if they_just_answered else {}),
@@ -122,8 +141,14 @@ def build_messages(
     history: list[dict[str, Any]],
     user_text: str,
     max_history: int = 8,
+    language_name: str | None = None,
 ) -> list[dict[str, str]]:
-    """System prompt + context, then the recent conversation, ending with the current user turn."""
+    """System prompt + context, then the recent conversation, ending with the current user turn.
+
+    `language_name` is restated right next to the user's message: some models follow the language of the
+    earlier turns over the instruction in the context, so a person who switches from Hindi to English
+    would still be answered in Hindi.
+    """
     msgs: list[dict[str, str]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "system", "content": context},
@@ -134,5 +159,8 @@ def build_messages(
         recent = recent[:-1]
     for m in recent[-max_history:]:
         msgs.append({"role": m["role"], "content": m["text"].strip()[:500]})
-    msgs.append({"role": "user", "content": user_text.strip()[:800]})
+    final = user_text.strip()[:800]
+    if language_name:
+        final += f"\n\n[Reply in {language_name}, even if earlier messages used another language.]"
+    msgs.append({"role": "user", "content": final})
     return msgs
