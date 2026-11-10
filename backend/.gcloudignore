@@ -1,0 +1,11 @@
+# What `gcloud builds submit backend` uploads to Cloud Storage. Keep secrets and local tooling out.
+.gcloudignore
+.env
+.env.*
+!.env.example
+.venv/
+**/__pycache__/
+*.pyc
+.git
+.gitignore
+README.md
