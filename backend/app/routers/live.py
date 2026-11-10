@@ -9,6 +9,7 @@ import logging
 import socket
 import time
 import uuid
+from collections import deque
 from typing import Any
 
 import jwt
@@ -63,6 +64,127 @@ async def _open_stt(url: str, headers: dict[str, str]) -> "websockets.ClientConn
             logger.warning("STT connect attempt failed (%s): %s", "IPv4" if kwargs else "default", exc)
     assert last is not None
     raise last
+
+
+class _SttLink:
+    """The Gnani speech-to-text socket, which reconnects by itself.
+
+    Gnani hangs up (close code 1001, "idle_timeout") when it receives no audio for a while. That happens by
+    design here: while the assistant thinks and speaks, no audio is sent so it cannot hear itself. Without this
+    class the next audio frame hit a dead socket and ended the whole live session.
+
+    - The first connection is opened by start(); if that fails the error is raised, as before.
+    - When the socket is found closed, the next send() reconnects (with a short back-off) and the frames that
+      arrive meanwhile are kept, up to about 3 s, and replayed in order, so the start of the person's
+      speech is not clipped.
+    - If reconnecting keeps failing, on_fatal() is told once and audio is dropped.
+    """
+
+    MAX_PENDING_FRAMES = 100            # about 3 s of 16 kHz audio in 1024-byte frames
+    RECONNECT_ATTEMPTS = 5
+
+    def __init__(self, url: str, headers: dict[str, str], on_message, on_fatal) -> None:
+        self._url = url
+        self._headers = headers
+        self._on_message = on_message
+        self._on_fatal = on_fatal
+        self._ws: "websockets.ClientConnection | None" = None
+        self._reader: "asyncio.Task | None" = None
+        self._connecting: "asyncio.Task | None" = None
+        self._pending: deque[bytes] = deque(maxlen=self.MAX_PENDING_FRAMES)
+        self._closed = False
+        self._gave_up = False
+
+    async def start(self) -> None:
+        ws = await _open_stt(self._url, self._headers)
+        self._attach(ws)
+
+    def _attach(self, ws: "websockets.ClientConnection") -> None:
+        self._ws = ws
+        self._reader = asyncio.create_task(self._read(ws))
+
+    async def _read(self, ws: "websockets.ClientConnection") -> None:
+        try:
+            async for raw in ws:
+                try:
+                    await self._on_message(raw)
+                except Exception as exc:       # a bad message must not end the stream
+                    logger.warning("STT message handler failed: %s", exc)
+        except ConnectionClosed:
+            pass
+        finally:
+            if self._ws is ws:
+                self._ws = None                # reconnect on the next send()
+            rc = ws.close_code
+            logger.info("STT socket closed (code=%s reason=%s)", rc, getattr(ws, "close_reason", ""))
+
+    async def send(self, frame: bytes) -> None:
+        if self._closed or self._gave_up:
+            return
+        ws = self._ws
+        if ws is not None and not self._pending:
+            try:
+                await ws.send(frame)
+                return
+            except ConnectionClosed:
+                if self._ws is ws:
+                    self._ws = None
+        self._pending.append(frame)           # kept in order until a connection is ready
+        if self._ws is None and not (self._connecting and not self._connecting.done()):
+            self._connecting = asyncio.create_task(self._reconnect())
+
+    async def _reconnect(self) -> None:
+        delay = 0.3
+        for attempt in range(1, self.RECONNECT_ATTEMPTS + 1):
+            if self._closed:
+                return
+            try:
+                ws = await _open_stt(self._url, self._headers)
+            except Exception as exc:
+                logger.warning("STT reconnect %d/%d failed: %s", attempt, self.RECONNECT_ATTEMPTS, exc)
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 3.0)
+                continue
+            self._attach(ws)
+            logger.info("STT reconnected")
+            while self._pending and self._ws is ws:
+                frame = self._pending.popleft()
+                try:
+                    await ws.send(frame)
+                except ConnectionClosed:
+                    self._pending.appendleft(frame)
+                    break
+            return
+        self._gave_up = True
+        self._pending.clear()
+        try:
+            await self._on_fatal("Speech recognition lost its connection. Please reconnect the microphone.")
+        except Exception:
+            pass
+
+    async def close(self) -> None:
+        self._closed = True
+        for t in (self._connecting, self._reader):
+            if t and not t.done():
+                t.cancel()
+        for t in (self._connecting, self._reader):
+            if t:
+                try:
+                    await t
+                except (asyncio.CancelledError, Exception):
+                    pass
+        ws, self._ws = self._ws, None
+        if ws is not None:
+            try:
+                await asyncio.wait_for(ws.close(), timeout=2)
+            except Exception:
+                pass
+
+    async def __aenter__(self) -> "_SttLink":
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        await self.close()
 
 
 def _user_from_token(token: str) -> User | None:
@@ -325,56 +447,57 @@ async def live_voice(websocket: WebSocket) -> None:
             flush_task.cancel()
         flush_task = asyncio.create_task(_wait())
 
+    async def on_stt_message(raw: Any) -> None:
+        nonlocal language, pending_lang, speaking
+        try:
+            msg = json.loads(raw)
+        except Exception:
+            return
+        kind = msg.get("type")
+        if kind == "connected":
+            await _send(websocket, {"type": "listening", "detail": msg})
+        elif kind == "processing":
+            # Show "hearing you" — do not answer yet
+            await _send(websocket, {"type": "hearing"})
+        elif kind == "transcript":
+            # Ignore while we talk or process (half-duplex + no self-echo)
+            if processing or speaking or time.monotonic() < speak_until:
+                return
+            text = (msg.get("text") or msg.get("transcript") or "").strip()
+            if not text:
+                return
+            detected = msg.get("detected_language_code") or language
+            pending_lang = normalize_lang(detected)
+            # Accumulate segments — person may pause mid-thought
+            if pending_parts and text.lower() in " ".join(pending_parts).lower():
+                pass
+            else:
+                pending_parts.append(text)
+            await _send(
+                websocket,
+                {
+                    "type": "transcript_partial",
+                    "text": " ".join(pending_parts),
+                    "language": pending_lang,
+                },
+            )
+            schedule_flush()
+        elif kind == "error":
+            await _send(
+                websocket,
+                {
+                    "type": "stt_error",
+                    "message": msg.get("message") or str(msg),
+                },
+            )
+
+    async def on_stt_lost(message: str) -> None:
+        await _send(websocket, {"type": "stt_error", "message": message})
+
     try:
-        stt_conn = await _open_stt(settings.gnani_stt_ws_url, stt_headers)
-        async with stt_conn as stt_ws:
-
-            async def pump_stt() -> None:
-                nonlocal language, pending_lang, speaking
-                async for raw in stt_ws:
-                    try:
-                        msg = json.loads(raw)
-                    except Exception:
-                        continue
-                    kind = msg.get("type")
-                    if kind == "connected":
-                        await _send(websocket, {"type": "listening", "detail": msg})
-                    elif kind == "processing":
-                        # Show "hearing you" — do not answer yet
-                        await _send(websocket, {"type": "hearing"})
-                    elif kind == "transcript":
-                        # Ignore while we talk or process (half-duplex + no self-echo)
-                        if processing or speaking or time.monotonic() < speak_until:
-                            continue
-                        text = (msg.get("text") or msg.get("transcript") or "").strip()
-                        if not text:
-                            continue
-                        detected = msg.get("detected_language_code") or language
-                        pending_lang = normalize_lang(detected)
-                        # Accumulate segments — person may pause mid-thought
-                        if pending_parts and text.lower() in " ".join(pending_parts).lower():
-                            pass
-                        else:
-                            pending_parts.append(text)
-                        await _send(
-                            websocket,
-                            {
-                                "type": "transcript_partial",
-                                "text": " ".join(pending_parts),
-                                "language": pending_lang,
-                            },
-                        )
-                        schedule_flush()
-                    elif kind == "error":
-                        await _send(
-                            websocket,
-                            {
-                                "type": "stt_error",
-                                "message": msg.get("message") or str(msg),
-                            },
-                        )
-
-            stt_task = asyncio.create_task(pump_stt())
+        stt = _SttLink(settings.gnani_stt_ws_url, stt_headers, on_stt_message, on_stt_lost)
+        await stt.start()
+        async with stt as stt_ws:
 
             try:
                 while True:
@@ -496,11 +619,6 @@ async def live_voice(websocket: WebSocket) -> None:
                     flush_task.cancel()
                 if safety_task and not safety_task.done():
                     safety_task.cancel()
-                stt_task.cancel()
-                try:
-                    await stt_task
-                except asyncio.CancelledError:
-                    pass
 
     except WebSocketDisconnect:
         logger.info("Client disconnected session=%s", session_id)

@@ -35,7 +35,8 @@ _BREAKER_COOLDOWN_S = 30.0
 _MINUTE_REST_S = 5.0       # a per-minute limit: the provider's own hint is used if it is longer
 _DAILY_REST_S = 3600.0     # a daily quota: leave that key alone for an hour
 _BAD_KEY_REST_S = 3600.0   # an invalid or blocked key: leave it alone for an hour
-_ATTEMPT_CAP_S = 8.0       # one slow key must not use up the whole turn
+_ATTEMPT_CAP_S = 4.5       # one slow key must not use up the whole turn: normal replies take 1.3 to 2.5 s
+_SLOW_ATTEMPT_CAP_S = 8.0  # keys on the fallback model (gemini-3.5-flash) are slower and tried last, so give them longer
 _failures = 0
 _open_until = 0.0
 _resting: dict[str, float] = {}      # key -> time.monotonic() when it may be used again
@@ -216,6 +217,7 @@ async def _request(target: dict[str, str], payload: dict[str, Any], timeout: flo
             _model_override[target["key"]] = target["fallback_model"]
             logger.info("%s: %s is not available to this account, using %s", label, payload.get("model"), target["fallback_model"])
             payload["model"] = target["fallback_model"]
+            timeout = max(timeout, _SLOW_ATTEMPT_CAP_S)      # the fallback model is slower: do not hold it to the main model's cutoff
             continue
 
         if code in (401, 403) or "api key not valid" in body or "api_key_invalid" in body:
@@ -276,7 +278,9 @@ async def chat(messages: list[dict[str, str]], *, settings: Settings | None = No
             "max_completion_tokens": max(max_tokens or 0, s.llm_max_tokens),
             **_model_params(target["model"], s),
         }
-        outcome, data = await _request(target, payload, min(remaining, _ATTEMPT_CAP_S))
+        main_model = (s.gemini_model or "gemini-2.5-flash").strip()
+        cap = _ATTEMPT_CAP_S if (target["provider"] == "gemini" and payload["model"] == main_model) else _SLOW_ATTEMPT_CAP_S
+        outcome, data = await _request(target, payload, min(remaining, cap))
         if outcome == _OK:
             text, usage = data
             _record(True)
@@ -285,7 +289,7 @@ async def chat(messages: list[dict[str, str]], *, settings: Settings | None = No
             logger.info(
                 "LLM ok %s model=%s %dms tokens prompt=%s completion=%s%s",
                 target["label"], model_used, ms, usage.get("prompt_tokens"), usage.get("completion_tokens"),
-                f" (after {len(errors)} skipped)" if errors else "",
+                f" (after {len(errors)} skipped: {'; '.join(errors)[:160]})" if errors else "",
             )
             return LLMResult(ok=True, text=text, provider=target["provider"], model=model_used, latency_ms=ms, key=target["label"])
         errors.append(str(data))

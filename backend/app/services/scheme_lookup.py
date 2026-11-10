@@ -108,8 +108,15 @@ _GENERIC = {
     "required", "application", "apply", "online", "offline", "website", "portal", "income", "limit", "eligible", "eligibility",
     "benefit", "benefits", "amount", "payment", "money", "receive", "mandatory", "certificate", "aadhaar", "aadhar", "passbook",
     "domicile", "caste", "rural", "urban", "active", "launched", "difference", "between", "compare", "approved", "rejected",
+    # everyday words and needs ("any farming related scheme"): they describe what the person wants, they do not name a scheme
+    "related", "regarding", "concerning", "relating", "available", "various", "general", "special", "other", "another", "some",
+    "farming", "farm", "agriculture", "agricultural", "crop", "crops", "kheti", "business", "work", "works", "working",
+    "please", "could", "would", "should", "tell", "give", "show", "find", "looking", "suggest", "information", "details",
+    "government", "central", "state", "public", "social", "support", "assistance", "financial", "grant", "purchase",
 }
-_index: dict[str, Any] = {"n": -1, "tokens": {}, "entries": {}}
+_index: dict[str, Any] = {"n": -1, "tokens": {}, "entries": {}, "names": {}}
+_IDENTIFYING_MAX_NAMES = 6        # a word found in at most this many scheme names can identify one
+_SCHEME_WORD = re.compile(r"yojana|yojna|scheme|abhiyan|mission|योजना|स्कीम|अभियान")
 
 
 def _tokens(text: str) -> set[str]:
@@ -121,36 +128,63 @@ async def _catalogue_index() -> dict[str, Any]:
     if _index["n"] != len(cat):
         tokens: dict[str, set[str]] = {}
         entries: dict[str, dict[str, Any]] = {}
+        names: dict[str, set[str]] = {}
         for e in cat:
             slug = e.get("slug") or e.get("id")
             if not slug:
                 continue
             entries[slug] = e
-            for t in _tokens(f"{e.get('name', '')} {e.get('short_title', '')}"):
+            names[slug] = _tokens(f"{e.get('name', '')} {e.get('short_title', '')}")
+            for t in names[slug]:
                 tokens.setdefault(t, set()).add(slug)
-        _index.update(n=len(cat), tokens=tokens, entries=entries)
+        _index.update(n=len(cat), tokens=tokens, entries=entries, names=names)
     return _index
 
 
 async def find_in_catalogue(text: str, *, exclude: set[str] | None = None) -> list[dict[str, Any]]:
-    """Schemes outside the curated list whose official name the person is clearly using."""
+    """Schemes outside the curated list whose official name the person is clearly using.
+
+    One shared word is not enough: "any farming related scheme" shares "related" with "Work Related Tools for
+    Construction Workers", and that is not the person naming it. A scheme counts as named only when
+      - at least two distinctive words of its name are in the sentence AND they cover at least half of the
+        name's distinctive words, or
+      - the person says a scheme word (yojana, scheme, ...) and the one matching word is a long word found in
+        no other scheme's name, in a short name.
+    """
     if not re.search(r"[a-z]{4,}", _norm(text)):
         return []
     idx = await _catalogue_index()
-    words = _tokens(text)
-    score: dict[str, float] = {}
-    for w in words:
+    text_words = _tokens(text)
+    candidates: set[str] = set()
+    for w in text_words:
         slugs = idx["tokens"].get(w)
-        if not slugs or len(slugs) > 25:               # a word in many names is not a name
+        if slugs and len(slugs) <= 25:                 # a word in many names cannot start a match...
+            candidates |= slugs
+    # ...but once a scheme is a candidate, every word of the sentence that is in ITS name counts as evidence
+    matched = {sl: text_words & (idx["names"].get(sl) or set()) for sl in candidates}
+    says_scheme = bool(_SCHEME_WORD.search(_norm(text)))
+    scored: list[tuple[float, str]] = []
+    for sl, words in matched.items():
+        if exclude and sl in exclude:
             continue
-        weight = 3.0 if len(slugs) <= 3 else 1.0
-        for sl in slugs:
-            score[sl] = score.get(sl, 0.0) + weight
-    ranked = sorted((s for s in score.items() if s[1] >= 3.0 and not (exclude and s[0] in exclude)), key=lambda x: -x[1])
-    if not ranked:
+        name_words = idx["names"].get(sl) or set()
+        coverage = len(words) / max(1, len(name_words))
+        # a real name has a word that identifies this scheme ("Janani", "Kanyashree"); a description of a need
+        # ("disabled person", "medical treatment", "girl child") is made only of words found in many names
+        identifying = min((len(idx["tokens"].get(w, ())) for w in words), default=99) <= _IDENTIFYING_MAX_NAMES
+        if not identifying and coverage < 1.0:      # no identifying word: only counts if the person said the WHOLE name
+            continue
+        if len(words) >= 2 and coverage >= 0.5:
+            scored.append((len(words) + coverage, sl))
+        elif len(words) == 1 and says_scheme and len(name_words) <= 3:
+            w = next(iter(words))
+            if len(w) >= 6 and len(idx["tokens"].get(w, ())) == 1:
+                scored.append((1.0 + coverage, sl))
+    if not scored:
         return []
-    top = ranked[0][1]
-    return [idx["entries"][sl] for sl, sc in ranked[:2] if sc >= top - 0.01]
+    scored.sort(key=lambda x: -x[0])
+    top = scored[0][0]
+    return [idx["entries"][sl] for sc, sl in scored[:2] if sc >= top - 0.5]      # close calls: show both, not a guess
 
 
 async def find_named_schemes(text: str) -> list[dict[str, Any]]:
